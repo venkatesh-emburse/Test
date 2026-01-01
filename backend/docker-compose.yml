@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgis/postgis:15-3.4-alpine
+    container_name: liveconnect_db
+    environment:
+      POSTGRES_USER: liveconnect
+      POSTGRES_PASSWORD: liveconnect_dev_password
+      POSTGRES_DB: liveconnect
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liveconnect -d liveconnect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: liveconnect_redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: liveconnect_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@liveconnect.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5051:80"
+    depends_on:
+      - postgres
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,144 @@
+# =========================
+# General
+# =========================
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE / Editor
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.atom/
+*.sublime-project
+*.sublime-workspace
+
+# =========================
+# Flutter App (app/)
+# =========================
+
+# Dart/Flutter
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/build/
+app/coverage/
+app/doc/api/
+
+# iOS
+app/ios/Flutter/.last_build_id
+app/ios/.symlinks/
+app/ios/Pods/
+app/ios/Podfile.lock
+app/ios/.generated/
+app/ios/Flutter/Generated.xcconfig
+app/ios/Runner/GeneratedPluginRegistrant.*
+
+# Android
+app/android/.gradle/
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+app/android/local.properties
+app/android/key.properties
+app/android/*.keystore
+app/android/*.jks
+app/android/app/src/main/res/raw/
+app/.cxx/
+
+# Generated files
+app/*.g.dart
+app/*.freezed.dart
+app/*.gr.dart
+app/lib/generated_plugin_registrant.dart
+
+# Symbolication & Obfuscation
+app/*.symbols
+app/*.map.json
+
+# =========================
+# Backend (backend/)
+# =========================
+
+# Dependencies
+backend/node_modules/
+backend/package-lock.json
+
+# Build output
+backend/dist/
+backend/build/
+
+# Environment files
+backend/.env
+backend/.env.local
+backend/.env.*.local
+
+# Logs
+backend/logs/
+backend/*.log
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+
+# TypeScript
+backend/*.tsbuildinfo
+
+# Test coverage
+backend/coverage/
+backend/.nyc_output/
+
+# IDE
+backend/.idea/
+backend/*.iml
+
+# Docker (optional, remove if you want to track)
+# backend/docker-compose.override.yml
+
+# =========================
+# Shared / Root
+# =========================
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+
+# Build artifacts
+dist/
+build/
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets (never commit these!)
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
