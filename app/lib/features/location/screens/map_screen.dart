@@ -18,6 +18,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   LatLng? _currentLocation;
   List<NearbyUser> _nearbyUsers = [];
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -26,23 +27,63 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _initLocation() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        await Geolocator.requestPermission();
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _errorMessage = 'Location services are disabled.\nPlease enable location in your device settings.';
+          _isLoading = false;
+        });
+        return;
       }
 
-      final position = await Geolocator.getCurrentPosition();
+      // Check and request permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _errorMessage = 'Location permission denied.\nPlease grant location access to see nearby users.';
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _errorMessage = 'Location permission permanently denied.\nPlease enable it in app settings.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get current position - use whatever the device/emulator returns
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+      
+      debugPrint('Location detected: ${position.latitude}, ${position.longitude}');
+      
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
       });
+      
       _loadNearbyUsers();
     } catch (e) {
-      // Default to a location
+      debugPrint('Location error: $e');
       setState(() {
-        _currentLocation = LatLng(12.9716, 77.5946); // Bangalore
+        _errorMessage = 'Could not get your location.\nError: ${e.toString()}';
+        _isLoading = false;
       });
-      _loadNearbyUsers();
     }
   }
 
@@ -55,7 +96,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         queryParameters: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
-          'radiusKm': 25,
+          'radiusKm': 50,
         },
       );
       setState(() {
@@ -65,6 +106,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Nearby users error: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -77,129 +119,182 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadNearbyUsers,
+            onPressed: _initLocation,
           ),
         ],
       ),
-      body: _currentLocation == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _currentLocation!,
-                    initialZoom: 13,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c'],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    // Show loading
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Getting your location...'),
+          ],
+        ),
+      );
+    }
+
+    // Show error with retry
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.location_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _initLocation,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Geolocator.openLocationSettings(),
+                child: const Text('Open Location Settings'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show map
+    if (_currentLocation == null) {
+      return const Center(child: Text('No location available'));
+    }
+
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _currentLocation!,
+            initialZoom: 13,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c'],
+            ),
+            MarkerLayer(
+              markers: [
+                // Current user marker
+                Marker(
+                  point: _currentLocation!,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
                     ),
-                    MarkerLayer(
-                      markers: [
-                        // Current user marker
-                        Marker(
-                          point: _currentLocation!,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            child: const Icon(
-                              Icons.person,
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                // Nearby users
+                ..._nearbyUsers.map((user) => Marker(
+                      point: LatLng(
+                        user.approximateLatitude,
+                        user.approximateLongitude,
+                      ),
+                      child: GestureDetector(
+                        onTap: () => _showUserPreview(user),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: user.isVerified
+                                ? AppTheme.safetyHigh
+                                : Colors.grey,
+                            shape: BoxShape.circle,
+                            border: Border.all(
                               color: Colors.white,
-                              size: 20,
+                              width: 2,
                             ),
                           ),
+                          padding: const EdgeInsets.all(6),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
-                        // Nearby users
-                        ..._nearbyUsers.map((user) => Marker(
-                              point: LatLng(
-                                user.approximateLatitude,
-                                user.approximateLongitude,
-                              ),
-                              child: GestureDetector(
-                                onTap: () => _showUserPreview(user),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: user.isVerified
-                                        ? AppTheme.safetyHigh
-                                        : Colors.grey,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.all(6),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            )),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    )),
+              ],
+            ),
+          ],
+        ),
 
-                // User count badge
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.people,
-                          size: 18,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_nearbyUsers.length} nearby',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Center on me button
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      if (_currentLocation != null) {
-                        _mapController.move(_currentLocation!, 13);
-                      }
-                    },
-                    child: const Icon(Icons.my_location),
-                  ),
+        // User count badge
+        Positioned(
+          top: 16,
+          left: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
                 ),
               ],
             ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.people,
+                  size: 18,
+                  color: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${_nearbyUsers.length} nearby',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Center on me button
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton(
+            onPressed: () {
+              if (_currentLocation != null) {
+                _mapController.move(_currentLocation!, 13);
+              }
+            },
+            child: const Icon(Icons.my_location),
+          ),
+        ),
+      ],
     );
   }
 

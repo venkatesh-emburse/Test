@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/services/firebase_auth_service.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
@@ -46,32 +47,31 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     });
 
     try {
-      // Decode the phone number and ensure it has the + prefix
-      String phone = Uri.decodeComponent(widget.phone);
-      // Remove ALL spaces (not just leading/trailing)
-      phone = phone.replaceAll(' ', '');
-      if (!phone.startsWith('+')) {
-        phone = '+$phone';
+      final firebaseAuth = ref.read(firebaseAuthServiceProvider);
+      
+      // Verify OTP with Firebase
+      debugPrint('🔐 Verifying OTP: $_otp');
+      await firebaseAuth.verifyOtp(_otp);
+      
+      // Get Firebase ID token
+      final idToken = await firebaseAuth.getIdToken();
+      if (idToken == null) {
+        throw Exception('Failed to get Firebase token');
       }
       
-      print('Verifying OTP for phone: $phone');
-      print('OTP code: $_otp');
+      debugPrint('✅ Firebase verification successful');
       
+      // Exchange Firebase token for app tokens
       final response = await ref.read(dioProvider).post(
-        '/auth/otp/phone/verify',
-        data: {
-          'phone': phone,
-          'code': _otp,
-        },
+        '/auth/firebase/verify',
+        data: {'idToken': idToken},
       );
 
       final accessToken = response.data['accessToken'];
       final refreshToken = response.data['refreshToken'];
       final isNewUser = response.data['isNewUser'] ?? false;
 
-      print('✅ OTP Verified Successfully!');
-      print('Is new user: $isNewUser');
-      print('Access token received: ${accessToken != null}');
+      debugPrint('✅ Backend token received. Is new user: $isNewUser');
 
       // Save tokens
       final storage = ref.read(secureStorageProvider);
@@ -82,22 +82,97 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
       if (mounted) {
         if (isNewUser) {
-          print('Navigating to onboarding...');
+          debugPrint('Navigating to onboarding...');
           context.go('/auth/onboarding');
         } else {
-          print('Navigating to discovery...');
+          debugPrint('Navigating to discovery...');
           context.go('/discovery');
         }
       }
     } catch (e) {
-      print('OTP Verification Error:');
-      print('Error: $e');
-      setState(() => _error = 'Invalid OTP. Please try again.');
+      debugPrint('❌ OTP Verification Error: $e');
+      String errorMessage = 'Invalid OTP. Please try again.';
+      
+      if (e.toString().contains('invalid-verification-code')) {
+        errorMessage = 'Invalid OTP code. Please check and try again.';
+      } else if (e.toString().contains('session-expired')) {
+        errorMessage = 'OTP expired. Please request a new one.';
+      }
+      
+      setState(() => _error = errorMessage);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
+  }
+  
+  Future<void> _resendOtp() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    
+    String phone = Uri.decodeComponent(widget.phone);
+    phone = phone.replaceAll(' ', '');
+    if (!phone.startsWith('+')) {
+      phone = '+$phone';
+    }
+    
+    final firebaseAuth = ref.read(firebaseAuthServiceProvider);
+    
+    await firebaseAuth.verifyPhoneNumber(
+      phoneNumber: phone,
+      onCodeSent: (verificationId) {
+        ref.read(verificationIdProvider.notifier).state = verificationId;
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('OTP resent successfully!')),
+          );
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _error = error;
+          });
+        }
+      },
+      onAutoVerified: (credential) async {
+        try {
+          await firebaseAuth.signInWithCredential(credential);
+          final idToken = await firebaseAuth.getIdToken();
+          if (idToken != null) {
+            final response = await ref.read(dioProvider).post(
+              '/auth/firebase/verify',
+              data: {'idToken': idToken},
+            );
+            
+            final accessToken = response.data['accessToken'];
+            final refreshToken = response.data['refreshToken'];
+            final isNewUser = response.data['isNewUser'] ?? false;
+            
+            final storage = ref.read(secureStorageProvider);
+            await storage.write(key: 'access_token', value: accessToken);
+            await storage.write(key: 'refresh_token', value: refreshToken);
+            ref.read(authTokenProvider.notifier).state = accessToken;
+            
+            if (mounted) {
+              context.go(isNewUser ? '/auth/onboarding' : '/discovery');
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _error = 'Auto-verification failed.';
+            });
+          }
+        }
+      },
+    );
   }
 
   @override
@@ -204,9 +279,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               // Resend OTP
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    // TODO: Implement resend OTP
-                  },
+                  onPressed: _isLoading ? null : _resendOtp,
                   child: const Text('Resend OTP'),
                 ),
               ),

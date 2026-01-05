@@ -27,6 +27,11 @@ dependencies:
   shared_preferences: ^2.2.0
   flutter_secure_storage: ^9.0.0
 
+  # Firebase
+  firebase_core: ^2.24.0
+  firebase_auth: ^4.16.0
+  google_sign_in: ^6.1.6
+
   # UI Components
   cupertino_icons: ^1.0.2
   flutter_svg: ^2.0.0
@@ -43,6 +48,7 @@ dependencies:
 
   # Image Handling
   image_picker: ^1.0.0
+  image: ^4.1.0  # For image compression
   # image_cropper: ^5.0.0  # Temporarily disabled due to Android v1 embedding
 
   # Animations

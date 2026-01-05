@@ -89,7 +89,7 @@ export class ChatService {
     // ==================== GET CONVERSATIONS ====================
 
     async getConversations(userId: string): Promise<ConversationDto[]> {
-        // Get all matches with chat unlocked
+        // Get all matches (for MVP, show all matches including those with chat locked)
         const matches = await this.matchRepository
             .createQueryBuilder('match')
             .leftJoinAndSelect('match.user1', 'user1')
@@ -98,9 +98,12 @@ export class ChatService {
             .leftJoinAndSelect('user2.profile', 'profile2')
             .where('(match.user1Id = :userId OR match.user2Id = :userId)', { userId })
             .andWhere('match.isActive = :isActive', { isActive: true })
-            .andWhere('match.chatUnlocked = :chatUnlocked', { chatUnlocked: true })
+            // MVP: Show all matches, not just unlocked ones
+            // .andWhere('match.chatUnlocked = :chatUnlocked', { chatUnlocked: true })
             .orderBy('match.matchedAt', 'DESC')
             .getMany();
+
+        console.log(`💬 Found ${matches.length} matches for user ${userId}`);
 
         const conversations: ConversationDto[] = [];
 

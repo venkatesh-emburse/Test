@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -10,6 +11,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') ?? 6700;
   const apiPrefix = configService.get<string>('apiPrefix') ?? 'api/v1';
+
+  // Increase body size limit for image uploads (base64 encoded images are large)
+  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
   // Global prefix
   app.setGlobalPrefix(apiPrefix);

@@ -64,11 +64,11 @@ export class PremiumService {
 
         return {
             currentPlan,
-            isActive: currentPlan === SubscriptionPlan.PREMIUM && isActive,
+            isActive: true, // MVP: All users are active
             expiresAt,
             features,
             daysRemaining,
-            canUpgrade: currentPlan === SubscriptionPlan.FREE,
+            canUpgrade: false, // MVP: No upgrades needed
         };
     }
 
@@ -140,27 +140,21 @@ export class PremiumService {
                 break;
             case 'undo_swipe':
                 isEnabled = features.undoSwipe;
-                upgradeMessage = !isEnabled ? 'Upgrade to Premium to undo your last swipe!' : undefined;
                 break;
             case 'see_who_liked':
                 isEnabled = features.seeWhoLiked;
-                upgradeMessage = !isEnabled ? 'Upgrade to Premium to see who liked you!' : undefined;
                 break;
             case 'read_receipts':
                 isEnabled = features.readReceipts;
-                upgradeMessage = !isEnabled ? 'Upgrade to Premium for read receipts!' : undefined;
                 break;
             case 'priority_discovery':
                 isEnabled = features.priorityDiscovery;
-                upgradeMessage = !isEnabled ? 'Upgrade to Premium for priority in discovery!' : undefined;
                 break;
             case 'no_ads':
                 isEnabled = features.noAds;
-                upgradeMessage = !isEnabled ? 'Upgrade to Premium for an ad-free experience!' : undefined;
                 break;
             default:
-                isEnabled = false;
-                upgradeMessage = 'Unknown feature';
+                isEnabled = true; // MVP: Enable all features by default
         }
 
         return {
@@ -173,12 +167,13 @@ export class PremiumService {
 
     // ==================== UPGRADE PROMPT ====================
 
+    // MVP: Return feature info instead of upgrade prompt
     async getUpgradePrompt(): Promise<UpgradePromptDto> {
         return {
-            title: 'Upgrade to LiveConnect Premium',
-            message: 'Unlock exclusive features and find your match faster!',
+            title: 'LiveConnect MVP',
+            message: 'Enjoy all features for free during our beta period!',
             features: [
-                'Unlimited swipes',
+                '50 swipes per day',
                 '5 super likes per day',
                 'See who liked you',
                 'Read receipts in chat',
@@ -188,8 +183,8 @@ export class PremiumService {
                 'No ads',
             ],
             pricing: {
-                monthly: 499, // INR
-                yearly: 2999, // INR (50% savings)
+                monthly: 0, // Free for MVP
+                yearly: 0,
                 currency: 'INR',
             },
         };

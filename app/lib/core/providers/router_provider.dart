@@ -9,6 +9,7 @@ import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/discovery/screens/home_screen.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/profile/screens/manage_photos_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/location/screens/map_screen.dart';
@@ -150,6 +151,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Profile Photos (outside shell to have back button)
+      GoRoute(
+        path: '/profile/photos',
+        builder: (context, state) => const ManagePhotosScreen(),
+      ),
+
       // Safety & Premium
       GoRoute(
         path: '/safety',
@@ -162,3 +169,4 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+

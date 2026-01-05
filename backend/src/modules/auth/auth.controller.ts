@@ -79,6 +79,16 @@ export class AuthController {
         return this.authService.verifyEmailOtp(dto);
     }
 
+    @Post('firebase/verify')
+    @Public()
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Verify Firebase ID token and authenticate' })
+    @ApiResponse({ status: 200, description: 'Authentication successful', type: AuthTokensResponseDto })
+    @ApiResponse({ status: 400, description: 'Invalid Firebase token' })
+    async verifyFirebaseToken(@Body() dto: { idToken: string }) {
+        return this.authService.authenticateWithFirebase(dto.idToken);
+    }
+
     // ==================== TOKEN ENDPOINTS ====================
 
     @Post('refresh')

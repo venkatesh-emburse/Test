@@ -4,6 +4,7 @@ import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/app_theme.dart';
+import 'profile_details_screen.dart';
 
 // Discovery profiles provider
 final discoveryProfilesProvider = FutureProvider<List<DiscoveryProfile>>((ref) async {
@@ -216,7 +217,9 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
               return true;
             },
             cardBuilder: (context, index, percentThresholdX, percentThresholdY) {
-              return _buildProfileCard(profiles[index]);
+              return _buildProfileCard(profiles[index], onTap: () {
+                _openProfileDetails(profiles[index]);
+              });
             },
           ),
         ),
@@ -250,163 +253,180 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
-  Widget _buildProfileCard(DiscoveryProfile profile) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+  void _openProfileDetails(DiscoveryProfile profile) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileDetailsScreen(
+          profile: profile,
+          onLike: () => _controller.swipeRight(),
+          onPass: () => _controller.swipeLeft(),
+          onSuperLike: () => _controller.swipeTop(),
+        ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Photo
-            profile.photos.isNotEmpty
-                ? Image.network(
-                    profile.photos.first,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+    );
+  }
+
+  Widget _buildProfileCard(DiscoveryProfile profile, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Photo
+              profile.photos.isNotEmpty
+                  ? Image.network(
+                      profile.photos.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.person, size: 80),
+                      ),
+                    )
+                  : Container(
                       color: Colors.grey[200],
                       child: const Icon(Icons.person, size: 80),
                     ),
-                  )
-                : Container(
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.person, size: 80),
-                  ),
 
-            // Gradient overlay
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.8),
-                  ],
-                ),
-              ),
-            ),
-
-            // Info
-            Positioned(
-              left: 20,
-              right: 20,
-              bottom: 20,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${profile.name}, ${profile.age}',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      if (profile.isVerified)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.safetyHigh,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.verified, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
-                              Text(
-                                'Verified',
-                                style: TextStyle(color: Colors.white, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
+              // Gradient overlay
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.8),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  if (profile.bio != null)
-                    Text(
-                      profile.bio!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  if (profile.interests.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: profile.interests.take(4).map((interest) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            interest,
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Safety score badge
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+
+              // Info
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.shield,
-                      size: 16,
-                      color: _getSafetyColor(profile.safetyScore),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${profile.name}, ${profile.age}',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (profile.isVerified)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.safetyHigh,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.verified, color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Verified',
+                                  style: TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${profile.safetyScore.toInt()}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    if (profile.bio != null)
+                      Text(
+                        profile.bio!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    if (profile.interests.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: profile.interests.take(4).map((interest) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              interest,
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Safety score badge
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.shield,
+                        size: 16,
                         color: _getSafetyColor(profile.safetyScore),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        '${profile.safetyScore.toInt()}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _getSafetyColor(profile.safetyScore),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

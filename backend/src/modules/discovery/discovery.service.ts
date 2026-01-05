@@ -51,11 +51,10 @@ export class DiscoveryService {
         const excludeIds = await this.getExcludedUserIds(userId);
         excludeIds.push(userId); // Exclude self
 
-        // Get limit based on subscription
-        const isPremium = currentUser.currentPlan === SubscriptionPlan.PREMIUM;
-        const maxRadius = isPremium
-            ? (query.maxDistance || 100)
-            : Math.min(query.maxDistance || 30, 30); // Free users capped at 30km
+        console.log(`🔍 Discovery for user ${userId}: Excluding ${excludeIds.length} users`);
+
+        // Get limit based on plan features
+        const maxRadius = query.maxDistance || 100; // MVP: All users get full radius
 
         const limit = query.limit || 10;
         const offset = query.offset || 0;
@@ -64,7 +63,8 @@ export class DiscoveryService {
         const queryBuilder = this.userRepository
             .createQueryBuilder('user')
             .leftJoinAndSelect('user.profile', 'profile')
-            .where('user.id NOT IN (:...excludeIds)', { excludeIds: excludeIds.length ? excludeIds : ['none'] })
+            .where('user.id != :currentUserId', { currentUserId: userId }) // Explicitly exclude self
+            .andWhere(excludeIds.length > 1 ? 'user.id NOT IN (:...excludeIds)' : '1=1', { excludeIds })
             .andWhere('user.isActive = :isActive', { isActive: true })
             .andWhere('user.isBanned = :isBanned', { isBanned: false })
             .andWhere('user.isInvisible = :isInvisible', { isInvisible: false })
@@ -142,18 +142,21 @@ export class DiscoveryService {
         // Check daily limits
         await this.checkAndResetDailyCounters(currentUser);
 
-        const isPremium = currentUser.currentPlan === SubscriptionPlan.PREMIUM;
-        const freeSwipesLimit = this.configService.get<number>('features.freeSwipesPerDay') || 10;
+        // MVP: Check daily limits (applies to all users)
+        const swipesLimit = this.configService.get<number>('features.swipesPerDay') || 50;
+        const superLikesLimit = this.configService.get<number>('features.superLikesPerDay') || 5;
 
-        if (!isPremium && currentUser.swipesToday >= freeSwipesLimit) {
+        if (currentUser.swipesToday >= swipesLimit) {
             throw new ForbiddenException(
-                `Daily swipe limit (${freeSwipesLimit}) reached. Upgrade to Premium for unlimited swipes.`
+                `Daily swipe limit (${swipesLimit}) reached. Come back tomorrow!`
             );
         }
 
-        // Check super like limits for free users
-        if (action === SwipeAction.SUPER_LIKE && !isPremium) {
-            throw new ForbiddenException('Super Like is a Premium feature');
+        // Check super like daily limit
+        if (action === SwipeAction.SUPER_LIKE && currentUser.superLikesToday >= superLikesLimit) {
+            throw new ForbiddenException(
+                `Daily super like limit (${superLikesLimit}) reached. Come back tomorrow!`
+            );
         }
 
         // Create swipe

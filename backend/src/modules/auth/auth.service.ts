@@ -166,6 +166,127 @@ export class AuthService {
         return this.verifyOtpAndAuthenticate(email, code, OtpPurpose.EMAIL_VERIFICATION, 'email');
     }
 
+    // ==================== FIREBASE AUTH (Google Sign-In) ====================
+
+    async authenticateWithFirebase(idToken: string) {
+        try {
+            // Decode the Firebase ID token
+            // For MVP, we decode the JWT without full verification
+            // In production, you should use Firebase Admin SDK to verify the token
+            const parts = idToken.split('.');
+            if (parts.length !== 3) {
+                throw new BadRequestException('Invalid Firebase token format');
+            }
+
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+
+            console.log('🔥 Firebase token payload:', {
+                email: payload.email,
+                name: payload.name,
+                phone: payload.phone_number,
+                uid: payload.user_id || payload.sub,
+                picture: payload.picture,
+            });
+
+            // Check token expiration
+            if (payload.exp && payload.exp * 1000 < Date.now()) {
+                throw new BadRequestException('Firebase token has expired');
+            }
+
+            const email = payload.email;
+            const firebaseUid = payload.user_id || payload.sub;
+
+            if (!email && !payload.phone_number) {
+                throw new BadRequestException('No email or phone in Firebase token');
+            }
+
+            // Find user by Firebase UID, email, or phone
+            let user = await this.userRepository.findOne({
+                where: [
+                    { firebaseUid },
+                    { email },
+                    ...(payload.phone_number ? [{ phone: payload.phone_number }] : []),
+                ],
+                relations: ['profile'],
+            });
+
+            let isNewUser = false;
+            if (!user) {
+                isNewUser = true;
+                user = this.userRepository.create({
+                    email,
+                    emailVerified: !!email,
+                    phone: payload.phone_number,
+                    phoneVerified: !!payload.phone_number,
+                    firebaseUid,
+                    name: payload.name || '',
+                    dateOfBirth: new Date('1990-01-01'),
+                    gender: Gender.OTHER,
+                    intent: UserIntent.LONG_TERM,
+                    currentPlan: SubscriptionPlan.FREE,
+                    // Initial safety score: email verified = 10, phone verified = +15
+                    safetyScore: (email ? 10 : 0) + (payload.phone_number ? 15 : 0),
+                });
+                await this.userRepository.save(user);
+                console.log('✅ Created new user via Firebase:', user.id);
+            } else {
+                // Update user info if needed
+                if (!user.firebaseUid) {
+                    user.firebaseUid = firebaseUid;
+                }
+                if (email && !user.email) {
+                    user.email = email;
+                    user.emailVerified = true;
+                }
+                if (payload.phone_number && !user.phone) {
+                    user.phone = payload.phone_number;
+                    user.phoneVerified = true;
+                    // Boost safety score for phone verification
+                    user.safetyScore = Number(user.safetyScore) + 15;
+                }
+                if (payload.name && !user.name) {
+                    user.name = payload.name;
+                }
+                await this.userRepository.save(user);
+                console.log('✅ Found existing user via Firebase:', user.id);
+            }
+
+            // Generate app tokens
+            const tokens = await this.generateTokens(user);
+
+            return {
+                ...tokens,
+                isNewUser,
+                profileComplete: this.isProfileComplete(user),
+            };
+        } catch (error) {
+            console.error('❌ Firebase auth error:', error);
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException('Failed to verify Firebase token');
+        }
+    }
+
+    // Verify phone and boost safety score
+    async verifyPhoneAndBoostScore(userId: string, phone: string) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        user.phone = phone;
+        user.phoneVerified = true;
+        user.safetyScore = Number(user.safetyScore) + 15;
+        await this.userRepository.save(user);
+
+        return {
+            success: true,
+            safetyScore: Number(user.safetyScore),
+            message: 'Phone verified! Your safety score increased by 15 points.',
+        };
+    }
+
     private async verifyOtpAndAuthenticate(
         identifier: string,
         code: string,

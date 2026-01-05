@@ -31,6 +31,10 @@ export class User extends BaseEntity {
     @Column({ name: 'email_verified', default: false })
     emailVerified: boolean;
 
+    @Column({ name: 'firebase_uid', nullable: true })
+    @Index()
+    firebaseUid?: string;
+
     @Column()
     name: string;
 

@@ -15,6 +15,7 @@ import { SafetyModule } from './modules/safety/safety.module';
 import { LocationModule } from './modules/location/location.module';
 import { SignalsModule } from './modules/signals/signals.module';
 import { PremiumModule } from './modules/premium/premium.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 // Entities
 import {
@@ -80,6 +81,7 @@ import {
     LocationModule,
     SignalsModule,
     PremiumModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

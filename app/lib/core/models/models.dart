@@ -118,16 +118,34 @@ class Match {
   });
 
   factory Match.fromJson(Map<String, dynamic> json) {
+    // Handle both 'id' and 'matchId' (conversation endpoint uses matchId)
+    final matchId = json['matchId'] ?? json['id'];
+    
+    // Handle lastMessage as object or string
+    String? lastMessageContent;
+    DateTime? lastMessageTime;
+    if (json['lastMessage'] is Map) {
+      lastMessageContent = json['lastMessage']['content'];
+      lastMessageTime = json['lastMessage']['createdAt'] != null
+          ? DateTime.parse(json['lastMessage']['createdAt'])
+          : null;
+    } else {
+      lastMessageContent = json['lastMessage'];
+      lastMessageTime = json['lastMessageAt'] != null
+          ? DateTime.parse(json['lastMessageAt'])
+          : null;
+    }
+    
     return Match(
-      id: json['id'],
+      id: matchId,
       otherUser: User.fromJson(json['otherUser']),
-      matchedAt: DateTime.parse(json['matchedAt']),
+      matchedAt: json['matchedAt'] != null 
+          ? DateTime.parse(json['matchedAt']) 
+          : DateTime.now(),
       microDateGame: json['microDateGame'],
       chatUnlocked: json['chatUnlocked'] ?? false,
-      lastMessage: json['lastMessage'],
-      lastMessageAt: json['lastMessageAt'] != null
-          ? DateTime.parse(json['lastMessageAt'])
-          : null,
+      lastMessage: lastMessageContent,
+      lastMessageAt: lastMessageTime,
       unreadCount: json['unreadCount'] ?? 0,
     );
   }

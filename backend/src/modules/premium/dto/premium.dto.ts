@@ -151,30 +151,33 @@ export class UpgradePromptDto {
 }
 
 // Feature limits by plan
+// MVP: All features are FREE but with configurable rate limits
 export const PLAN_FEATURES: Record<SubscriptionPlan, PremiumFeaturesDto> = {
     [SubscriptionPlan.FREE]: {
-        swipesPerDay: 20,
-        superLikesPerDay: 1,
-        undoSwipe: false,
-        seeWhoLiked: false,
-        readReceipts: false,
-        lastActiveFilter: false,
-        safetyScoreFilter: false,
-        maxRadiusKm: 25,
-        mapProfilesLimit: 10,
-        priorityDiscovery: false,
-        noAds: false,
+        // MVP: Generous limits for free users (configurable)
+        swipesPerDay: 50,        // Daily swipe limit
+        superLikesPerDay: 5,     // Super likes per day
+        undoSwipe: true,         // Allow undo
+        seeWhoLiked: true,       // See who liked you
+        readReceipts: true,      // Read receipts in chat
+        lastActiveFilter: true,  // Last active filter
+        safetyScoreFilter: true, // Safety score filter
+        maxRadiusKm: 100,        // Max discovery radius
+        mapProfilesLimit: 50,    // Map profiles limit
+        priorityDiscovery: true, // Priority in discovery
+        noAds: true,             // No ads for MVP
     },
+    // Premium plan (keep for future monetization)
     [SubscriptionPlan.PREMIUM]: {
         swipesPerDay: 999, // Unlimited
-        superLikesPerDay: 5,
+        superLikesPerDay: 10,
         undoSwipe: true,
         seeWhoLiked: true,
         readReceipts: true,
         lastActiveFilter: true,
         safetyScoreFilter: true,
-        maxRadiusKm: 100,
-        mapProfilesLimit: 50,
+        maxRadiusKm: 200,
+        mapProfilesLimit: 100,
         priorityDiscovery: true,
         noAds: true,
     },

@@ -45,7 +45,7 @@ export default () => ({
     apiKey: process.env.REVENUECAT_API_KEY || '',
   },
 
-  // AWS S3
+  // AWS S3 (legacy - keeping for reference)
   aws: {
     region: process.env.AWS_REGION || 'ap-south-1',
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
@@ -53,16 +53,26 @@ export default () => ({
     s3Bucket: process.env.AWS_S3_BUCKET || '',
   },
 
+  // Cloudinary (for photo/video uploads)
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  },
+
   // Google Maps
   googleMaps: {
     apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
   },
 
-  // Feature Flags (defaults - can be overridden by admin in database)
+  // MVP Feature Settings (all features free with configurable limits)
   features: {
-    freeSwipesPerDay: parseInt(process.env.DEFAULT_FREE_SWIPES_PER_DAY || '10', 10),
-    freeRadiusKm: parseInt(process.env.DEFAULT_FREE_RADIUS_KM || '30', 10),
-    freeMapProfiles: parseInt(process.env.DEFAULT_FREE_MAP_PROFILES || '5', 10),
-    premiumRadiusKm: parseInt(process.env.DEFAULT_PREMIUM_RADIUS_KM || '100', 10),
+    // Daily limits (MVP: generous limits for all users)
+    swipesPerDay: parseInt(process.env.SWIPES_PER_DAY || '50', 10),
+    superLikesPerDay: parseInt(process.env.SUPER_LIKES_PER_DAY || '5', 10),
+
+    // Discovery settings
+    maxRadiusKm: parseInt(process.env.MAX_RADIUS_KM || '100', 10),
+    mapProfilesLimit: parseInt(process.env.MAP_PROFILES_LIMIT || '50', 10),
   },
 });
