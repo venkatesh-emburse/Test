@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/otp_screen.dart';
+import '../../features/auth/screens/email_login_screen.dart';
+import '../../features/auth/screens/email_otp_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/discovery/screens/home_screen.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
@@ -16,6 +18,7 @@ import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/location/screens/map_screen.dart';
 import '../../features/safety/screens/safety_screen.dart';
+import '../../features/profile/screens/help_support_screen.dart';
 import '../api/api_client.dart';
 
 // Shell navigation for bottom nav bar with back-button handling
@@ -131,7 +134,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
 
       // Auth routes — always allowed
-      const authRoutes = ['/', '/auth/login', '/auth/otp', '/auth/onboarding'];
+      const authRoutes = ['/', '/auth/login', '/auth/otp', '/auth/email', '/auth/email/otp', '/auth/onboarding'];
       if (authRoutes.contains(location)) return null;
 
       // For all main app routes, check profile completion
@@ -160,6 +163,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final phone = state.uri.queryParameters['phone'];
           return OtpScreen(phone: phone ?? '');
+        },
+      ),
+      GoRoute(
+        path: '/auth/email',
+        builder: (context, state) => const EmailLoginScreen(),
+      ),
+      GoRoute(
+        path: '/auth/email/otp',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return EmailOtpScreen(email: email);
         },
       ),
       GoRoute(
@@ -221,6 +235,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/safety',
         builder: (context, state) => const SafetyScreen(),
+      ),
+
+      // Help & Support
+      GoRoute(
+        path: '/help',
+        builder: (context, state) => const HelpSupportScreen(),
       ),
     ],
   );

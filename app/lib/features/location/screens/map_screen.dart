@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -23,8 +21,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   List<NearbyUser> _nearbyUsers = [];
   bool _isLoading = true;
   String? _errorMessage;
-  static const double _maxRadiusMeters = 300;
-  static const double _minZoomLevel = 17.0;
+  bool _isSatelliteView = false;
+  double _currentZoom = 14.5;
+  static const double _maxRadiusMeters = 1500;
+  static const double _minZoomLevel = 12.0;
+  static const double _maxZoomLevel = 19.0;
+  static const double _defaultZoom = 14.5;
 
   @override
   void initState() {
@@ -102,8 +104,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         queryParameters: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
-          'radiusKm': 0.3,
-          'activeWithinMinutes': 60,
+          'radiusKm': 1.5,
+          'activeWithinMinutes': 1440,
         },
       );
       setState(() {
@@ -192,25 +194,38 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           mapController: _mapController,
           options: MapOptions(
             initialCenter: _currentLocation!,
-            initialZoom: 17.5,
+            initialZoom: _defaultZoom,
             minZoom: _minZoomLevel,
-            maxZoom: 19,
-            maxBounds: _buildBounds(_currentLocation!, _maxRadiusMeters),
+            maxZoom: _maxZoomLevel,
             onPositionChanged: (position, hasGesture) {
-              if (position.center == null) return;
-              final bounds = _buildBounds(_currentLocation!, _maxRadiusMeters);
-              if (!bounds.contains(position.center!)) {
-                final clamped = _clampToBounds(position.center!, bounds);
-                _mapController.move(clamped, position.zoom ?? _minZoomLevel);
+              if (position.zoom != null) {
+                _currentZoom = position.zoom!;
               }
             },
           ),
           children: [
+            // Tile layer — satellite or standard
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: _isSatelliteView
+                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.liveconnect.app',
               maxZoom: 19,
             ),
+            // Radius circle
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: _currentLocation!,
+                  radius: _maxRadiusMeters,
+                  useRadiusInMeter: true,
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.08),
+                  borderStrokeWidth: 1.5,
+                  borderColor: Theme.of(context).primaryColor.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+            // Markers
             MarkerLayer(
               markers: [
                 // Current user marker
@@ -221,6 +236,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       color: Theme.of(context).primaryColor,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     padding: const EdgeInsets.all(8),
                     child: const Icon(
@@ -263,36 +285,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     )),
               ],
             ),
-            CircleLayer(
-              circles: [
-                CircleMarker(
-                  point: _currentLocation!,
-                  radius: _maxRadiusMeters,
-                  useRadiusInMeter: true,
-                  color: Theme.of(context).primaryColor.withOpacity(0.08),
-                  borderStrokeWidth: 1,
-                  borderColor: Theme.of(context).primaryColor.withOpacity(0.5),
-                ),
-              ],
-            ),
           ],
         ),
 
-        // User count badge
+        // Top left — user count badge
         Positioned(
           top: 16,
           left: 16,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                 ),
               ],
@@ -300,11 +307,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.people,
-                  size: 18,
-                  color: Theme.of(context).primaryColor,
-                ),
+                Icon(Icons.people, size: 18, color: Theme.of(context).primaryColor),
                 const SizedBox(width: 6),
                 Text(
                   '${_nearbyUsers.length} nearby',
@@ -315,36 +318,100 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
         ),
 
-        // Center on me button
+        // Top right — satellite toggle
+        Positioned(
+          top: 16,
+          right: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: Icon(
+                _isSatelliteView ? Icons.map_outlined : Icons.satellite_alt,
+                color: Theme.of(context).primaryColor,
+              ),
+              tooltip: _isSatelliteView ? 'Standard view' : 'Satellite view',
+              onPressed: () {
+                setState(() => _isSatelliteView = !_isSatelliteView);
+              },
+            ),
+          ),
+        ),
+
+        // Bottom right — zoom controls + my location
         Positioned(
           bottom: 16,
           right: 16,
-          child: FloatingActionButton(
-            onPressed: () {
-              if (_currentLocation != null) {
-                _mapController.move(_currentLocation!, 13);
-              }
-            },
-            child: const Icon(Icons.my_location),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Zoom in
+              _buildMapButton(
+                icon: Icons.add,
+                onPressed: () {
+                  final newZoom = (_currentZoom + 1).clamp(_minZoomLevel, _maxZoomLevel);
+                  _mapController.move(_mapController.camera.center, newZoom);
+                  _currentZoom = newZoom;
+                },
+              ),
+              const SizedBox(height: 8),
+              // Zoom out
+              _buildMapButton(
+                icon: Icons.remove,
+                onPressed: () {
+                  final newZoom = (_currentZoom - 1).clamp(_minZoomLevel, _maxZoomLevel);
+                  _mapController.move(_mapController.camera.center, newZoom);
+                  _currentZoom = newZoom;
+                },
+              ),
+              const SizedBox(height: 12),
+              // My location
+              FloatingActionButton(
+                heroTag: 'myLocation',
+                onPressed: () {
+                  if (_currentLocation != null) {
+                    _mapController.move(_currentLocation!, _defaultZoom);
+                    _currentZoom = _defaultZoom;
+                  }
+                },
+                child: const Icon(Icons.my_location),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  LatLngBounds _buildBounds(LatLng center, double radiusMeters) {
-    final latDelta = radiusMeters / 111320;
-    final lngDelta = radiusMeters / (111320 * cos(center.latitude * pi / 180));
-    return LatLngBounds(
-      LatLng(center.latitude - latDelta, center.longitude - lngDelta),
-      LatLng(center.latitude + latDelta, center.longitude + lngDelta),
+  Widget _buildMapButton({required IconData icon, required VoidCallback onPressed}) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+      ),
     );
-  }
-
-  LatLng _clampToBounds(LatLng point, LatLngBounds bounds) {
-    final clampedLat = point.latitude.clamp(bounds.south, bounds.north);
-    final clampedLng = point.longitude.clamp(bounds.west, bounds.east);
-    return LatLng(clampedLat, clampedLng);
   }
 
   void _showUserPreview(NearbyUser user) {

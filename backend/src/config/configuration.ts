@@ -46,6 +46,21 @@ export default () => ({
     apiKey: process.env.ADMIN_API_KEY || 'dev-admin-key',
   },
 
+  // Admin JWT (separate from app user JWT)
+  adminJwt: {
+    secret: process.env.ADMIN_JWT_SECRET || 'admin-dev-secret',
+    expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '8h',
+  },
+
+  // Email (Nodemailer / Gmail SMTP)
+  email: {
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_PORT || '587', 10),
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '', // Gmail App Password
+    from: process.env.EMAIL_FROM || 'LiveConnect <noreply@liveconnect.app>',
+  },
+
   // Google Maps
   googleMaps: {
     apiKey: process.env.GOOGLE_MAPS_API_KEY || '',

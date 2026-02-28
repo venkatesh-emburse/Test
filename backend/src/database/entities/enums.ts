@@ -54,3 +54,9 @@ export enum ScoreChangeCategory {
   REPORT_PENALTY = 'report_penalty',
   ADMIN_ACTION = 'admin_action',
 }
+
+export enum AdminRole {
+  SUPER_ADMIN = 'super_admin',
+  ADMIN = 'admin',
+  SUPPORT = 'support',
+}

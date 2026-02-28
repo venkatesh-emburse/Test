@@ -99,11 +99,9 @@ The safety score is a composite 0-100 score calculated in `backend/src/modules/s
 
 - **V1 is free**: No premium plans, no payment gating. All features available with daily limits.
 - **Manual verification**: No Agora.io or AI — admin team reviews all verifications manually via the web admin dashboard.
-- **Intent-only matching**: Users only see profiles with the same intent. No cross-intent matching.
-- **Compatibility-first discovery**: Profiles ordered by compatibility score, NOT proximity. Distance is the last factor.
 - **Soft signals before messaging**: Wave/Interested/Viewed signals — no direct messaging from discovery.
 - **Micro-dates unlock chat**: After matching, both users complete a conversation game before chat opens.
-- **Location privacy**: Exact coords stored in DB but responses always add ±200-500m random jitter. Women have map visibility OFF by default.
+- **Location privacy**: Exact coords stored in DB but responses always add ±200 random jitter. Women have map visibility OFF by default.
 - **Blocks stored as reports**: Blocking a user creates a Report entity with reason=OTHER, description="BLOCKED".
 
 ## Database Entities

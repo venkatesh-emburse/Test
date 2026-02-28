@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/socket_service.dart';
@@ -174,11 +173,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     caseSensitive: false,
   );
   static final _socialMediaRegex = RegExp(
-    r'\b(whatsapp|telegram|snapchat|instagram|insta|signal|wechat|fb|facebook)\b',
+    r'\b(whatsapp|telegram|snapchat|instagram|insta|signal|wechat|fb|facebook|live|chat|social|social media|nine|eight|six|zero|})\b',
     caseSensitive: false,
   );
   static final _financialRegex = RegExp(
     r'\b(send money|pay me|upi|gpay|phonepe|paytm|bank account|account number|ifsc|neft|imps|loan|invest|bitcoin|crypto|western union)\b',
+    caseSensitive: false,
+  );
+  static final _vulgarityRegex = RegExp(
+    r'\b(sex|fuck|fuck you|naked|nude|boobs|boobie|pussy|ass|dick|vagina|lick)\b',
     caseSensitive: false,
   );
 
@@ -188,6 +191,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_phoneRegex.hasMatch(content)) return 'phone_number';
     if (_urlRegex.hasMatch(content) || _socialMediaRegex.hasMatch(content)) {
       return 'external_link';
+    }
+    if (_vulgarityRegex.hasMatch(content)) {
+      return 'vulgarity';
     }
     return null;
   }
@@ -200,6 +206,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return 'Phone Number Detected';
       case 'external_link':
         return 'External Link Detected';
+      case 'vulgarity':
+        return 'Inappropriate Language Detected';
       default:
         return 'Suspicious Content Detected';
     }
@@ -213,6 +221,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return 'Sharing phone numbers early can put you at risk. Keep the conversation on the app until you\'ve built trust and met in a safe setting.';
       case 'external_link':
         return 'Sharing external links or social media handles early can be risky. Get to know your match on the app first before moving conversations elsewhere.';
+      case 'vulgarity':
+        return 'Messages containing inappropriate language are not allowed. Please use respectful language.';
       default:
         return 'This message contains content that may put your safety at risk. Please review and edit your message.';
     }
@@ -236,6 +246,141 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _viewProfile() {
+    if (_otherUser == null) return;
+    final user = _otherUser!;
+    final discoveryProfile = DiscoveryProfile(
+      id: user.id,
+      name: user.displayName,
+      age: user.age ?? 0,
+      gender: user.gender,
+      intent: user.intent,
+      safetyScore: user.safetyScore,
+      isVerified: user.isVerified,
+      compatibilityScore: 0,
+      photos: user.profile?.photos ?? [],
+      bio: user.profile?.bio,
+      interests: user.profile?.interests ?? [],
+      createdAt: user.createdAt,
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileDetailsScreen(profile: discoveryProfile, isMatched: true),
+      ),
+    );
+  }
+
+  void _showReportDialog() {
+    if (_otherUser == null) return;
+    final reasons = {
+      'fake_profile': 'Fake Profile',
+      'inappropriate_content': 'Inappropriate Content',
+      'harassment': 'Harassment',
+      'spam': 'Spam',
+      'scam': 'Scam',
+      'underage': 'Underage',
+      'other': 'Other',
+    };
+    String? selectedReason;
+    final descriptionController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Report ${_otherUser!.displayName}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Why are you reporting this user?',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 12),
+                ...reasons.entries.map((entry) {
+                  final isSelected = selectedReason == entry.key;
+                  return ListTile(
+                    title: Text(entry.value, style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    )),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      color: isSelected
+                          ? Theme.of(ctx).primaryColor
+                          : Theme.of(ctx).colorScheme.outline,
+                      size: 22,
+                    ),
+                    onTap: () =>
+                        setDialogState(() => selectedReason = entry.key),
+                  );
+                }),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: InputDecoration(
+                    hintText: 'Additional details (optional)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: selectedReason == null
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      await _submitReport(
+                        selectedReason!,
+                        descriptionController.text.trim(),
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.error,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Report'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitReport(String reason, String description) async {
+    try {
+      await ref.read(dioProvider).post('/safety/report', data: {
+        'reportedUserId': _otherUser!.id,
+        'reason': reason,
+        if (description.isNotEmpty) 'description': description,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted. Thank you for keeping the community safe.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit report: $e')),
+        );
+      }
+    }
   }
 
   void _sendMessage() {
@@ -395,12 +540,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'report',
                 child: Row(
                   children: [
                     Icon(Icons.flag_outlined, size: 20, color: AppTheme.error),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Text('Report', style: TextStyle(color: AppTheme.error)),
                   ],
                 ),

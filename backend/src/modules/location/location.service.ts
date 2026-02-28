@@ -49,15 +49,11 @@ export class LocationService {
       throw new NotFoundException('User not found');
     }
 
-    // Get users who have swiped or matched (to exclude)
-    const swipedUserIds = await this.getSwipedUserIds(userId);
-    const matchedUserIds = await this.getMatchedUserIds(userId);
+    // Only exclude self + blocked users — swiped & matched users still show on map
     const blockedUserIds = await this.getBlockedUserIds(userId);
 
     const excludeIds = [
       userId,
-      ...swipedUserIds,
-      ...matchedUserIds,
       ...blockedUserIds,
     ];
 
@@ -82,6 +78,7 @@ export class LocationService {
       .andWhere(
         `ST_DWithin("user"."location"::geography, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography, ${radiusMeters})`,
       )
+      .andWhere('"user"."show_on_map" = :showOnMap', { showOnMap: true })
       .andWhere('"user"."is_invisible" = :isInvisible', { isInvisible: false })
       .andWhere('"user"."last_active_at" >= :activeSince', { activeSince })
       .orderBy('distance_km', 'ASC')
@@ -142,14 +139,10 @@ export class LocationService {
     // Update current user's last active timestamp
     await this.userRepository.update(userId, { lastActiveAt: new Date() });
 
-    // Get exclusions
-    const swipedUserIds = await this.getSwipedUserIds(userId);
-    const matchedUserIds = await this.getMatchedUserIds(userId);
+    // Only exclude self + blocked users — swiped & matched users still show on map
     const blockedUserIds = await this.getBlockedUserIds(userId);
     const excludeIds = new Set([
       userId,
-      ...swipedUserIds,
-      ...matchedUserIds,
       ...blockedUserIds,
     ]);
 
@@ -176,6 +169,7 @@ export class LocationService {
           ST_MakeEnvelope(:west, :south, :east, :north, 4326)
         )`,
       )
+      .andWhere('user.showOnMap = :showOnMap', { showOnMap: true })
       .andWhere('user.isInvisible = :isInvisible', { isInvisible: false })
       .setParameters({
         north,
@@ -289,9 +283,14 @@ export class LocationService {
     viewerLng: number,
     maxDistanceKm: number,
   ): NearbyUserDto {
-    // Add random offset to location for privacy (up to ~60m)
-    const latOffset = (Math.random() - 0.5) * 0.0011; // ~60m
-    const lngOffset = (Math.random() - 0.5) * 0.0011;
+    // Add random offset to location for privacy (500-800m in a random direction)
+    const angle = Math.random() * 2 * Math.PI; // random direction
+    const distance = 300 + Math.random() * 200; // 300-500 meters
+    const metersPerDegreeLat = 111_320;
+    const metersPerDegreeLng =
+      111_320 * Math.cos((userLat * Math.PI) / 180);
+    const latOffset = (Math.sin(angle) * distance) / metersPerDegreeLat;
+    const lngOffset = (Math.cos(angle) * distance) / metersPerDegreeLng;
 
     let approxLat = userLat + latOffset;
     let approxLng = userLng + lngOffset;

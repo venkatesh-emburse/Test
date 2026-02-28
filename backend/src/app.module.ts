@@ -16,6 +16,9 @@ import { LocationModule } from './modules/location/location.module';
 import { SignalsModule } from './modules/signals/signals.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { EmailModule } from './modules/email/email.module';
 
 // Entities
 import {
@@ -30,6 +33,8 @@ import {
   SafetyScoreLog,
   OtpCode,
   RefreshToken,
+  AdminUser,
+  Feedback,
 } from './database/entities';
 
 @Module({
@@ -62,12 +67,17 @@ import {
           SafetyScoreLog,
           OtpCode,
           RefreshToken,
+          AdminUser,
+          Feedback,
         ],
         synchronize: configService.get('database.synchronize'), // Only for dev!
         logging: configService.get('database.logging'),
       }),
       inject: [ConfigService],
     }),
+
+    // Global Modules
+    EmailModule,
 
     // Feature Modules
     AuthModule,
@@ -80,6 +90,8 @@ import {
     SignalsModule,
     UploadModule,
     NotificationModule,
+    AdminModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [AppService],

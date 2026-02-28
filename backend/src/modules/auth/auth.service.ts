@@ -16,6 +16,7 @@ import { Profile } from '../../database/entities/profile.entity';
 import { OtpCode, OtpPurpose } from '../../database/entities/otp-code.entity';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
 import { UserIntent, Gender } from '../../database/entities/enums';
+import { EmailService } from '../email/email.service';
 import {
   SendPhoneOtpDto,
   SendEmailOtpDto,
@@ -39,6 +40,7 @@ export class AuthService {
     private refreshTokenRepository: Repository<RefreshToken>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   // ==================== OTP METHODS ====================
@@ -152,12 +154,9 @@ export class AuthService {
     });
     await this.otpRepository.save(otp);
 
-    // Send OTP via email service only in production
-    if (!isDev) {
-      // TODO: Integrate email service
-      // await this.emailService.send(email, 'Your OTP', `Your OTP is: ${otpCode}`);
-      console.log(`📧 Would send OTP to ${email} in production`);
-    } else {
+    // Send OTP via email (falls back to console log if email not configured)
+    await this.emailService.sendOtp(email, otpCode);
+    if (isDev) {
       console.log(`📧 [DEV MODE] OTP for ${email}: ${otpCode}`);
     }
 

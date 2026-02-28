@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
+import '../../../core/services/firebase_auth_service.dart';
 import '../../../core/utils/app_theme.dart';
 
 // Current user provider - autoDispose ensures fresh data on each access
@@ -275,12 +276,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _buildMenuItem(
             icon: Icons.help,
             title: 'Help & Support',
-            onTap: () {},
+            onTap: () => context.push('/help'),
           ),
           _buildMenuItem(
             icon: Icons.logout,
             title: 'Logout',
             onTap: () async {
+              // Sign out from Google + Firebase (clears cached account)
+              final firebaseAuth = ref.read(firebaseAuthServiceProvider);
+              await firebaseAuth.signOut();
               final storage = ref.read(secureStorageProvider);
               await storage.deleteAll();
               ref.read(authTokenProvider.notifier).state = null;

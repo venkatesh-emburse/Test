@@ -1,23 +1,73 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import StatCard from "@/components/admin/StatCard";
+
+interface DashboardStats {
+  totalUsers: number;
+  pendingVerifications: number;
+  openReports: number;
+  verifiedUsers: number;
+  activeToday: number;
+  newThisWeek: number;
+  suspendedUsers: number;
+  matchesToday: number;
+}
+
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStats = async () => {
+    try {
+      const data = await api.get<DashboardStats>("/admin/dashboard/stats");
+      setStats(data);
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-8">Dashboard</h1>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {[
-          { label: "Total Users", value: "—", color: "bg-blue-500" },
-          { label: "Pending Verifications", value: "—", color: "bg-amber-500" },
-          { label: "Open Reports", value: "—", color: "bg-red-500" },
-          { label: "Verified Users", value: "—", color: "bg-green-500" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-sm text-gray-500 mb-1">{stat.label}</div>
-            <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
-            <div className={`h-1 w-12 ${stat.color} rounded mt-3`} />
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm p-6 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-24 mb-3" />
+              <div className="h-8 bg-gray-200 rounded w-16" />
+            </div>
+          ))}
+        </div>
+      ) : stats ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <StatCard label="Total Users" value={stats.totalUsers} color="bg-blue-500" />
+            <StatCard label="Pending Verifications" value={stats.pendingVerifications} color="bg-amber-500" />
+            <StatCard label="Open Reports" value={stats.openReports} color="bg-red-500" />
+            <StatCard label="Verified Users" value={stats.verifiedUsers} color="bg-green-500" />
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <StatCard label="Active Today" value={stats.activeToday} color="bg-indigo-500" />
+            <StatCard label="New This Week" value={stats.newThisWeek} color="bg-purple-500" />
+            <StatCard label="Suspended" value={stats.suspendedUsers} color="bg-orange-500" />
+            <StatCard label="Matches Today" value={stats.matchesToday} color="bg-pink-500" />
+          </div>
+        </>
+      ) : (
+        <div className="text-center text-gray-400 py-12">Failed to load stats</div>
+      )}
 
       {/* Quick Actions */}
       <div className="bg-white rounded-xl shadow-sm p-6">

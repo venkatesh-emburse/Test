@@ -8,6 +8,7 @@ class ProfileDetailsScreen extends ConsumerStatefulWidget {
   final VoidCallback? onLike;
   final VoidCallback? onPass;
   final VoidCallback? onSuperLike;
+  final bool isMatched;
 
   const ProfileDetailsScreen({
     super.key,
@@ -15,6 +16,7 @@ class ProfileDetailsScreen extends ConsumerStatefulWidget {
     this.onLike,
     this.onPass,
     this.onSuperLike,
+    this.isMatched = false,
   });
 
   @override
@@ -361,7 +363,7 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
             ],
           ),
 
-          // Action buttons at bottom
+          // Bottom bar: matched banner or action buttons
           Positioned(
             left: 0,
             right: 0,
@@ -378,41 +380,73 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
                     Theme.of(context).scaffoldBackgroundColor,
                   ],
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildActionButton(
-                    icon: Icons.close,
-                    color: AppTheme.passColor,
-                    onTap: () {
-                      widget.onPass?.call();
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _buildActionButton(
-                    icon: Icons.star,
-                    color: AppTheme.superLikeColor,
-                    size: 70,
-                    onTap: () {
-                      widget.onSuperLike?.call();
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _buildActionButton(
-                    icon: Icons.favorite,
-                    color: AppTheme.likeColor,
-                    onTap: () {
-                      widget.onLike?.call();
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
+              child: widget.isMatched
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppTheme.primaryColor, Color(0xFFFF6B9D)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.favorite_rounded, color: Colors.white, size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            "You're matched with ${profile.name}!",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.close,
+                          color: AppTheme.passColor,
+                          onTap: () {
+                            widget.onPass?.call();
+                            Navigator.pop(context);
+                          },
+                        ),
+                        _buildActionButton(
+                          icon: Icons.star,
+                          color: AppTheme.superLikeColor,
+                          size: 70,
+                          onTap: () {
+                            widget.onSuperLike?.call();
+                            Navigator.pop(context);
+                          },
+                        ),
+                        _buildActionButton(
+                          icon: Icons.favorite,
+                          color: AppTheme.likeColor,
+                          onTap: () {
+                            widget.onLike?.call();
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],

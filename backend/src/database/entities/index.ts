@@ -11,3 +11,5 @@ export * from './safety-verification.entity';
 export * from './safety-score-log.entity';
 export * from './otp-code.entity';
 export * from './refresh-token.entity';
+export * from './admin-user.entity';
+export * from './feedback.entity';
