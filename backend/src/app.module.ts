@@ -14,8 +14,8 @@ import { ChatModule } from './modules/chat/chat.module';
 import { SafetyModule } from './modules/safety/safety.module';
 import { LocationModule } from './modules/location/location.module';
 import { SignalsModule } from './modules/signals/signals.module';
-import { PremiumModule } from './modules/premium/premium.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { NotificationModule } from './modules/notification/notification.module';
 
 // Entities
 import {
@@ -27,8 +27,7 @@ import {
   Signal,
   Report,
   SafetyVerification,
-  Subscription,
-  FeatureConfig,
+  SafetyScoreLog,
   OtpCode,
   RefreshToken,
 } from './database/entities';
@@ -60,8 +59,7 @@ import {
           Signal,
           Report,
           SafetyVerification,
-          Subscription,
-          FeatureConfig,
+          SafetyScoreLog,
           OtpCode,
           RefreshToken,
         ],
@@ -80,10 +78,10 @@ import {
     SafetyModule,
     LocationModule,
     SignalsModule,
-    PremiumModule,
     UploadModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

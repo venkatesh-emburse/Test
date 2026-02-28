@@ -6,19 +6,34 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/app_theme.dart';
 
 // Current user provider - autoDispose ensures fresh data on each access
 final currentUserProvider = FutureProvider.autoDispose<User>((ref) async {
-  final response = await ref.read(dioProvider).get('/auth/me');
+  final dio = ref.read(dioProvider);
+
+  final meResponse = await dio.get('/auth/me');
+
   // Backend returns { user: {...}, profile: {...} }
-  final userData = response.data['user'] as Map<String, dynamic>;
-  final profileData = response.data['profile'] as Map<String, dynamic>?;
-  
+  final userData = meResponse.data['user'] as Map<String, dynamic>;
+  final profileData = meResponse.data['profile'] as Map<String, dynamic>?;
+
   // Merge profile into user data for parsing
   if (profileData != null) {
     userData['profile'] = profileData;
   }
-  
+
+  // Fetch live safety score (recalculated) and override stored value
+  try {
+    final scoreResponse = await dio.get('/safety/score');
+    final liveScore = scoreResponse.data['totalScore'];
+    if (liveScore != null) {
+      userData['safetyScore'] = liveScore;
+    }
+  } catch (_) {
+    // Fall back to stored safetyScore from /auth/me
+  }
+
   print('👤 Profile: Loaded user ${userData['name']} with ${(profileData?['photos'] as List?)?.length ?? 0} photos');
   return User.fromJson(userData);
 });
@@ -100,6 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -152,7 +168,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundColor: Colors.grey[200],
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                       backgroundImage: user.profile?.photos.isNotEmpty == true
                           ? NetworkImage(user.profile!.photos.first)
                           : null,
@@ -194,17 +210,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: AppTheme.success.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.verified, color: Colors.green, size: 16),
+                        Icon(Icons.verified_rounded, color: AppTheme.success, size: 15),
                         SizedBox(width: 4),
                         Text(
                           'Verified',
-                          style: TextStyle(color: Colors.green),
+                          style: TextStyle(
+                            color: AppTheme.success,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -217,12 +237,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: Theme.of(context).colorScheme.surfaceContainerLowest,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildStat('Safety Score', '${user.safetyScore.toInt()}'),
+                _buildStat('Trust Score', '${user.safetyScore.toInt()}'),
                 _buildStat('Photos', '${user.profile?.photos.length ?? 0}/6'),
                 _buildStat('Completeness', '${user.profile?.profileCompleteness ?? 0}%'),
               ],
@@ -234,7 +254,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _buildMenuItem(
             icon: Icons.edit,
             title: 'Edit Profile',
-            onTap: () {},
+            onTap: () => context.push('/profile/edit'),
           ),
           _buildMenuItem(
             icon: Icons.photo_library,
@@ -245,32 +265,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _buildMenuItem(
             icon: Icons.shield,
             title: 'Safety & Verification',
-            onTap: () => context.go('/safety'),
-          ),
-          _buildMenuItem(
-            icon: Icons.workspace_premium,
-            title: 'Premium Features',
-            onTap: () => context.go('/premium'),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                'FREE',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            onTap: () => context.push('/safety'),
           ),
           _buildMenuItem(
             icon: Icons.privacy_tip,
             title: 'Privacy Settings',
-            onTap: () {},
+            onTap: () => context.push('/profile/edit'),
           ),
           _buildMenuItem(
             icon: Icons.help,
@@ -288,7 +288,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ref.invalidate(currentUserProvider);
               if (context.mounted) context.go('/auth/login');
             },
-            color: Colors.red,
+            color: AppTheme.error,
           ),
           const SizedBox(height: 32),
         ],
@@ -311,7 +311,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -330,9 +330,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       leading: Icon(icon, color: color),
       title: Text(title, style: TextStyle(color: color)),
       subtitle: subtitle != null ? Text(subtitle) : null,
-      trailing: trailing ?? Icon(Icons.chevron_right, color: Colors.grey[400]),
+      trailing: trailing ?? Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
       onTap: onTap,
     );
   }
 }
-

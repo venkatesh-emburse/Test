@@ -7,7 +7,7 @@ export class AppService {
   constructor(
     @InjectDataSource()
     private dataSource: DataSource,
-  ) { }
+  ) {}
 
   async getHealth() {
     let dbStatus = 'disconnected';

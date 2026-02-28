@@ -15,32 +15,42 @@ class FirebaseAuthService {
   // ==================== GOOGLE SIGN-IN ====================
   
   /// Sign in with Google
-  Future<UserCredential> signInWithGoogle() async {
+  Future<UserCredential?> signInWithGoogle() async {
     debugPrint('🔐 Starting Google Sign-In...');
     
-    // Trigger Google Sign-In flow
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    
-    if (googleUser == null) {
-      throw Exception('Google Sign-In was cancelled');
+    try {
+      // Trigger Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        throw Exception('Google Sign-In was cancelled');
+      }
+      
+      debugPrint('✅ Google user: ${googleUser.email}');
+      
+      // Get auth details from Google
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      // Create Firebase credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      
+      // Sign in to Firebase with the credential
+      final userCredential = await _auth.signInWithCredential(credential);
+      debugPrint('✅ Firebase sign-in successful: ${userCredential.user?.uid}');
+      
+      return userCredential;
+    } catch (e) {
+      // Handle PigeonUserDetails type casting error (known issue in google_sign_in)
+      if (e.toString().contains('PigeonUserDetails')) {
+        debugPrint('⚠️ PigeonUserDetails error (known issue), but auth succeeded');
+        // Auth actually succeeded - return null and let caller check currentUser
+        return null;
+      }
+      rethrow;
     }
-    
-    debugPrint('✅ Google user: ${googleUser.email}');
-    
-    // Get auth details from Google
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-    
-    // Create Firebase credential
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    
-    // Sign in to Firebase with the credential
-    final userCredential = await _auth.signInWithCredential(credential);
-    debugPrint('✅ Firebase sign-in successful: ${userCredential.user?.uid}');
-    
-    return userCredential;
   }
   
   /// Get Firebase ID token for backend verification

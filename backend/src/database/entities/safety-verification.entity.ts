@@ -1,58 +1,84 @@
-import {
-    Entity,
-    Column,
-    ManyToOne,
-    JoinColumn,
-    Index,
-} from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { User } from './user.entity';
-import { VerificationStatus } from './enums';
+import { VerificationStatus, VerificationType } from './enums';
 
 @Entity('safety_verifications')
 @Index(['userId', 'createdAt'])
 export class SafetyVerification extends BaseEntity {
-    @Column({ name: 'user_id' })
-    userId: string;
+  @Column({ name: 'user_id' })
+  userId: string;
 
-    @ManyToOne(() => User, (user) => user.safetyVerifications, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'user_id' })
-    user: User;
+  @ManyToOne(() => User, (user) => user.safetyVerifications, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
-    @Column({ name: 'video_url', nullable: true })
-    videoUrl?: string;
+  @Column({ name: 'video_url', nullable: true })
+  videoUrl?: string;
 
-    @Column({ name: 'phrase_shown' })
-    phraseShown: string;
+  @Column({ name: 'selfie_image_url', nullable: true })
+  selfieImageUrl?: string;
 
-    @Column({ name: 'phrase_detected', nullable: true })
-    phraseDetected?: string;
+  @Column({ name: 'challenge_code', nullable: true })
+  challengeCode?: string;
 
-    @Column({ name: 'speech_match_score', type: 'decimal', precision: 5, scale: 2, nullable: true })
-    speechMatchScore?: number;
+  @Column({ name: 'phrase_shown', nullable: true })
+  phraseShown?: string;
 
-    @Column({ name: 'face_match_score', type: 'decimal', precision: 5, scale: 2, nullable: true })
-    faceMatchScore?: number;
+  @Column({ name: 'phrase_detected', nullable: true })
+  phraseDetected?: string;
 
-    @Column({ name: 'liveness_score', type: 'decimal', precision: 5, scale: 2, nullable: true })
-    livenessScore?: number;
+  @Column({
+    name: 'speech_match_score',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
+  speechMatchScore?: number;
 
-    @Column({ name: 'verification_status', type: 'enum', enum: VerificationStatus, default: VerificationStatus.PENDING })
-    verificationStatus: VerificationStatus;
+  @Column({
+    name: 'face_match_score',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
+  faceMatchScore?: number;
 
-    @Column({ name: 'verified_at', type: 'timestamp', nullable: true })
-    verifiedAt?: Date;
+  @Column({
+    name: 'liveness_score',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
+  livenessScore?: number;
 
-    @Column({ name: 'failure_reason', nullable: true })
-    failureReason?: string;
+  @Column({
+    name: 'verification_status',
+    type: 'enum',
+    enum: VerificationStatus,
+    default: VerificationStatus.PENDING,
+  })
+  verificationStatus: VerificationStatus;
 
-    // Agora session tracking
-    @Column({ name: 'agora_channel', nullable: true })
-    agoraChannel?: string;
+  @Column({
+    name: 'verification_type',
+    type: 'enum',
+    enum: VerificationType,
+    default: VerificationType.VIDEO,
+  })
+  verificationType: VerificationType;
 
-    @Column({ name: 'session_started_at', type: 'timestamp', nullable: true })
-    sessionStartedAt?: Date;
+  @Column({ name: 'verified_at', type: 'timestamp', nullable: true })
+  verifiedAt?: Date;
 
-    @Column({ name: 'session_ended_at', type: 'timestamp', nullable: true })
-    sessionEndedAt?: Date;
+  @Column({ name: 'failure_reason', nullable: true })
+  failureReason?: string;
+
+  @Column({ name: 'admin_notes', type: 'text', nullable: true })
+  adminNotes?: string;
 }

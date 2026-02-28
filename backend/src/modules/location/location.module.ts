@@ -10,9 +10,9 @@ import { Swipe } from '../../database/entities/swipe.entity';
 import { Match } from '../../database/entities/match.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, Profile, Swipe, Match])],
-    controllers: [LocationController],
-    providers: [LocationService],
-    exports: [LocationService],
+  imports: [TypeOrmModule.forFeature([User, Profile, Swipe, Match])],
+  controllers: [LocationController],
+  providers: [LocationService],
+  exports: [LocationService],
 })
-export class LocationModule { }
+export class LocationModule {}

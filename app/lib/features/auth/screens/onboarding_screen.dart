@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/services/location_service.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -63,6 +64,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           'bio': _bio,
         },
       );
+      ref.read(profileCompleteProvider.notifier).state = true;
+      // Update location in background (non-blocking)
+      ref.read(locationServiceProvider).updateLocationInBackground();
       if (mounted) context.go('/discovery');
     } finally {
       setState(() => _isLoading = false);
@@ -87,7 +91,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       decoration: BoxDecoration(
                         color: index <= _currentPage
                             ? Theme.of(context).primaryColor
-                            : Colors.grey[300],
+                            : Theme.of(context).dividerColor,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -127,7 +131,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           const SizedBox(height: 8),
           Text(
             'This helps us find better matches for you',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 32),
 
@@ -151,7 +155,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     border: Border.all(
                       color: isSelected
                           ? Theme.of(context).primaryColor
-                          : Colors.grey[300]!,
+                          : Theme.of(context).dividerColor,
                       width: 2,
                     ),
                     borderRadius: BorderRadius.circular(12),
@@ -225,7 +229,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Theme.of(context).inputDecorationTheme.fillColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -233,7 +237,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
                     : 'Select date',
                 style: TextStyle(
-                  color: _dateOfBirth != null ? null : Colors.grey[600],
+                  color: _dateOfBirth != null ? null : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),

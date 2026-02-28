@@ -61,16 +61,16 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                         itemBuilder: (context, index) {
                           if (profile.photos.isEmpty) {
                             return Container(
-                              color: Colors.grey[200],
-                              child: const Icon(Icons.person, size: 120, color: Colors.grey),
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              child: Icon(Icons.person, size: 120, color: Theme.of(context).colorScheme.outline),
                             );
                           }
                           return Image.network(
                             profile.photos[index],
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[200],
-                              child: const Icon(Icons.person, size: 120, color: Colors.grey),
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              child: Icon(Icons.person, size: 120, color: Theme.of(context).colorScheme.outline),
                             ),
                           );
                         },
@@ -203,11 +203,11 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                       Row(
                         children: [
                           if (profile.distanceKm != null) ...[
-                            const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                            Icon(Icons.location_on, size: 16, color: Theme.of(context).colorScheme.outline),
                             const SizedBox(width: 4),
                             Text(
                               '${profile.distanceKm!.toStringAsFixed(1)} km away',
-                              style: TextStyle(color: Colors.grey[600]),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                             ),
                             const SizedBox(width: 16),
                           ],
@@ -228,42 +228,81 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                         ],
                       ),
 
-                      // Safety score
+                      // Trust & Verification section
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getSafetyColor(profile.safetyScore).withOpacity(0.1),
+                          color: _getTierColor(profile.verificationTier).withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Row(
+                        child: Column(
                           children: [
-                            Icon(
-                              Icons.shield,
-                              color: _getSafetyColor(profile.safetyScore),
-                              size: 32,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.shield_rounded,
+                                  color: _getTierColor(profile.verificationTier),
+                                  size: 32,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            profile.verificationTier,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: _getTierColor(profile.verificationTier),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${profile.safetyScore.toInt()}/100',
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Text(
+                                        _getSafetyText(profile.safetyScore),
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Safety Score: ${profile.safetyScore.toInt()}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: _getSafetyColor(profile.safetyScore),
-                                    ),
+                            const SizedBox(height: 12),
+                            // Trust details row
+                            Row(
+                              children: [
+                                _buildTrustDetail(
+                                  icon: profile.isVerified
+                                      ? Icons.verified_rounded
+                                      : Icons.cancel_outlined,
+                                  label: profile.isVerified ? 'Verified' : 'Not Verified',
+                                  color: profile.isVerified
+                                      ? AppTheme.safetyHigh
+                                      : Theme.of(context).colorScheme.outline,
+                                ),
+                                const SizedBox(width: 16),
+                                if (profile.memberSince != null)
+                                  _buildTrustDetail(
+                                    icon: Icons.calendar_today_rounded,
+                                    label: 'Since ${profile.memberSince}',
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
-                                  Text(
-                                    _getSafetyText(profile.safetyScore),
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
                           ],
                         ),
@@ -280,7 +319,7 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                         Text(
                           profile.bio!,
                           style: TextStyle(
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             height: 1.5,
                           ),
                         ),
@@ -339,8 +378,8 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withOpacity(0),
-                    Colors.white,
+                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0),
+                    Theme.of(context).scaffoldBackgroundColor,
                   ],
                 ),
               ),
@@ -396,10 +435,35 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
     }
   }
 
-  Color _getSafetyColor(double score) {
-    if (score >= 70) return AppTheme.safetyHigh;
-    if (score >= 40) return AppTheme.safetyMedium;
-    return AppTheme.safetyLow;
+  Color _getTierColor(String tier) {
+    switch (tier) {
+      case 'Trusted':
+        return const Color(0xFFD4A017); // Gold
+      case 'Verified':
+        return const Color(0xFF8E8E93); // Silver
+      case 'Basic':
+        return const Color(0xFFCD7F32); // Bronze
+      default:
+        return const Color(0xFFAEAEB2); // Gray for "New"
+    }
+  }
+
+  Widget _buildTrustDetail({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 13, color: color),
+        ),
+      ],
+    );
   }
 
   String _getSafetyText(double score) {
@@ -420,7 +484,7 @@ class _ProfileDetailsScreenState extends ConsumerState<ProfileDetailsScreen> {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(

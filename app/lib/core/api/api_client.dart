@@ -1,12 +1,26 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // API Configuration
-// Use 10.0.2.2 for Android emulator (maps to host machine's localhost)
-// Use localhost for iOS simulator
-const String baseUrl = 'http://10.0.2.2:6700/api/v1';
-const String wsUrl = 'ws://10.0.2.2:6700';
+// Override with: flutter run --dart-define=API_HOST=192.168.29.15
+// Android emulator: 10.0.2.2 (default for Android)
+// iOS simulator: localhost
+// Real device: your machine's LAN IP (pass via --dart-define)
+const String _apiHostOverride = String.fromEnvironment('API_HOST');
+const int apiPort = 6700;
+
+String get _host {
+  if (_apiHostOverride.isNotEmpty) return _apiHostOverride;
+  if (kIsWeb) return 'localhost';
+  if (Platform.isAndroid) return '10.0.2.2';
+  return 'localhost'; // iOS simulator
+}
+
+String get baseUrl => 'https://c4e8-2405-201-c062-c870-941e-8250-2e23-4e97.ngrok-free.app/api/v1';
+String get wsUrl => 'https://c4e8-2405-201-c062-c870-941e-8250-2e23-4e97.ngrok-free.app';
 
 // Secure Storage Provider
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
@@ -16,12 +30,15 @@ final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
 // Auth Token Provider
 final authTokenProvider = StateProvider<String?>((ref) => null);
 
+// Profile Complete Provider (null = unknown, true/false = determined)
+final profileCompleteProvider = StateProvider<bool?>((ref) => null);
+
 // Dio Provider with interceptors
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl,
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 30),
     headers: {
       'Content-Type': 'application/json',
       'Bypass-Tunnel-Reminder': 'true', // Required for localtunnel

@@ -8,7 +8,6 @@ export * from './message.entity';
 export * from './signal.entity';
 export * from './report.entity';
 export * from './safety-verification.entity';
-export * from './subscription.entity';
-export * from './feature-config.entity';
+export * from './safety-score-log.entity';
 export * from './otp-code.entity';
 export * from './refresh-token.entity';

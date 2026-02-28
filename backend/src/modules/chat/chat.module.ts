@@ -12,18 +12,18 @@ import { Match } from '../../database/entities/match.entity';
 import { User } from '../../database/entities/user.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Message, Match, User]),
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get('jwt.secret'),
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    controllers: [ChatController],
-    providers: [ChatService, ChatGateway],
-    exports: [ChatService, ChatGateway],
+  imports: [
+    TypeOrmModule.forFeature([Message, Match, User]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get('jwt.secret'),
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  controllers: [ChatController],
+  providers: [ChatService, ChatGateway],
+  exports: [ChatService, ChatGateway],
 })
-export class ChatModule { }
+export class ChatModule {}

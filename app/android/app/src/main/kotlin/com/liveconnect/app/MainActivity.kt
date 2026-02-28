@@ -1,4 +1,4 @@
-package com.example.liveconnect
+package com.liveconnect.app
 
 import io.flutter.embedding.android.FlutterActivity
 

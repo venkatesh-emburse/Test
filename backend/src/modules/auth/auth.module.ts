@@ -15,22 +15,22 @@ import { OtpCode } from '../../database/entities/otp-code.entity';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([User, Profile, OtpCode, RefreshToken]),
-        PassportModule.register({ defaultStrategy: 'jwt' }),
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get('jwt.secret'),
-                signOptions: {
-                    expiresIn: configService.get('jwt.expiresIn'),
-                },
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    controllers: [AuthController],
-    providers: [AuthService, JwtStrategy, JwtAuthGuard],
-    exports: [AuthService, JwtAuthGuard, JwtStrategy, TypeOrmModule],
+  imports: [
+    TypeOrmModule.forFeature([User, Profile, OtpCode, RefreshToken]),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get('jwt.secret'),
+        signOptions: {
+          expiresIn: configService.get('jwt.expiresIn'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard, JwtStrategy, TypeOrmModule],
 })
-export class AuthModule { }
+export class AuthModule {}

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -5,6 +7,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/utils/app_theme.dart';
+import '../../../core/models/models.dart';
+import '../../discovery/screens/profile_details_screen.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -19,6 +23,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   List<NearbyUser> _nearbyUsers = [];
   bool _isLoading = true;
   String? _errorMessage;
+  static const double _maxRadiusMeters = 300;
+  static const double _minZoomLevel = 17.0;
 
   @override
   void initState() {
@@ -96,7 +102,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         queryParameters: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
-          'radiusKm': 50,
+          'radiusKm': 0.3,
+          'activeWithinMinutes': 60,
         },
       );
       setState(() {
@@ -150,7 +157,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.location_off, size: 64, color: Colors.grey),
+              Icon(Icons.location_off, size: 64, color: Theme.of(context).colorScheme.outline),
               const SizedBox(height: 16),
               Text(
                 _errorMessage!,
@@ -185,12 +192,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           mapController: _mapController,
           options: MapOptions(
             initialCenter: _currentLocation!,
-            initialZoom: 13,
+            initialZoom: 17.5,
+            minZoom: _minZoomLevel,
+            maxZoom: 19,
+            maxBounds: _buildBounds(_currentLocation!, _maxRadiusMeters),
+            onPositionChanged: (position, hasGesture) {
+              if (position.center == null) return;
+              final bounds = _buildBounds(_currentLocation!, _maxRadiusMeters);
+              if (!bounds.contains(position.center!)) {
+                final clamped = _clampToBounds(position.center!, bounds);
+                _mapController.move(clamped, position.zoom ?? _minZoomLevel);
+              }
+            },
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: const ['a', 'b', 'c'],
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.liveconnect.app',
+              maxZoom: 19,
             ),
             MarkerLayer(
               markers: [
@@ -223,22 +242,37 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           decoration: BoxDecoration(
                             color: user.isVerified
                                 ? AppTheme.safetyHigh
-                                : Colors.grey,
+                                : Theme.of(context).colorScheme.outline,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.white,
                               width: 2,
                             ),
                           ),
-                          padding: const EdgeInsets.all(6),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 16,
+                          child: CircleAvatar(
+                            radius: 12,
+                            backgroundImage: user.photos.isNotEmpty
+                                ? NetworkImage(user.photos.first)
+                                : null,
+                            child: user.photos.isEmpty
+                                ? const Icon(Icons.person, size: 12, color: Colors.white)
+                                : null,
                           ),
                         ),
                       ),
                     )),
+              ],
+            ),
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: _currentLocation!,
+                  radius: _maxRadiusMeters,
+                  useRadiusInMeter: true,
+                  color: Theme.of(context).primaryColor.withOpacity(0.08),
+                  borderStrokeWidth: 1,
+                  borderColor: Theme.of(context).primaryColor.withOpacity(0.5),
+                ),
               ],
             ),
           ],
@@ -254,7 +288,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               vertical: 8,
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -296,6 +330,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
       ],
     );
+  }
+
+  LatLngBounds _buildBounds(LatLng center, double radiusMeters) {
+    final latDelta = radiusMeters / 111320;
+    final lngDelta = radiusMeters / (111320 * cos(center.latitude * pi / 180));
+    return LatLngBounds(
+      LatLng(center.latitude - latDelta, center.longitude - lngDelta),
+      LatLng(center.latitude + latDelta, center.longitude + lngDelta),
+    );
+  }
+
+  LatLng _clampToBounds(LatLng point, LatLngBounds bounds) {
+    final clampedLat = point.latitude.clamp(bounds.south, bounds.north);
+    final clampedLng = point.longitude.clamp(bounds.west, bounds.east);
+    return LatLng(clampedLat, clampedLng);
   }
 
   void _showUserPreview(NearbyUser user) {
@@ -340,14 +389,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                               child: Icon(
                                 Icons.verified,
                                 size: 18,
-                                color: Colors.green,
+                                color: AppTheme.success,
                               ),
                             ),
                         ],
                       ),
                       Text(
                         '${user.distanceKm.toStringAsFixed(1)} km away',
-                        style: TextStyle(color: Colors.grey[600]),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -387,7 +436,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  // Navigate to full profile
+                  // Create DiscoveryProfile from NearbyUser
+                  final profile = DiscoveryProfile(
+                    id: user.id,
+                    name: user.name ?? 'Unknown',
+                    age: user.age,
+                    gender: user.gender,
+                    intent: user.intent,
+                    safetyScore: user.safetyScore,
+                    isVerified: user.isVerified,
+                    compatibilityScore: user.compatibilityScore,
+                    distanceKm: user.distanceKm,
+                    photos: user.photos,
+                    bio: user.bio,
+                    interests: user.interests,
+                  );
+                  
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfileDetailsScreen(profile: profile),
+                    ),
+                  );
                 },
                 child: const Text('View Profile'),
               ),
@@ -408,22 +478,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 class NearbyUser {
   final String id;
   final String? name;
+  final int age;
+  final String gender;
+  final String intent;
   final List<String> photos;
   final bool isVerified;
   final double safetyScore;
+  final int compatibilityScore;
   final double distanceKm;
   final double approximateLatitude;
   final double approximateLongitude;
+  final String? bio;
+  final List<String> interests;
 
   NearbyUser({
     required this.id,
     this.name,
+    required this.age,
+    required this.gender,
+    required this.intent,
     required this.photos,
     required this.isVerified,
     required this.safetyScore,
+    this.compatibilityScore = 0,
     required this.distanceKm,
     required this.approximateLatitude,
     required this.approximateLongitude,
+    this.bio,
+    this.interests = const [],
   });
 
   String get displayName => name ?? 'Nearby User';
@@ -432,12 +514,18 @@ class NearbyUser {
     return NearbyUser(
       id: json['id'] ?? '',
       name: json['name'],
+      age: json['age'] ?? 0,
+      gender: json['gender'] ?? 'other',
+      intent: json['intent'] ?? 'casual',
       photos: List<String>.from(json['photos'] ?? []),
       isVerified: json['isVerified'] ?? false,
       safetyScore: (json['safetyScore'] ?? 0).toDouble(),
+      compatibilityScore: json['compatibilityScore'] ?? 0,
       distanceKm: (json['distanceKm'] ?? 0).toDouble(),
       approximateLatitude: json['approximateLocation']?['latitude'] ?? 0,
       approximateLongitude: json['approximateLocation']?['longitude'] ?? 0,
+      bio: json['bio'],
+      interests: List<String>.from(json['interests'] ?? []),
     );
   }
 }

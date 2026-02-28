@@ -1,7 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
+import '../../../core/services/socket_service.dart';
+import '../../../core/utils/app_theme.dart';
+import '../../discovery/screens/profile_details_screen.dart';
+import '../screens/chat_list_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String matchId;
@@ -17,11 +23,109 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   List<Message> _messages = [];
   bool _isLoading = true;
+  String? _errorMessage;
+  bool _otherUserTyping = false;
+  Timer? _typingTimer;
+  String? _currentUserId;
+  User? _otherUser;
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _loadMessages();
+    _loadOtherUser();
+    _connectSocket();
+  }
+
+  void _loadCurrentUser() async {
+    try {
+      final response = await ref.read(dioProvider).get('/auth/me');
+      _currentUserId = response.data['user']?['id'];
+    } catch (_) {}
+  }
+
+  void _loadOtherUser() async {
+    try {
+      // Look up the match from conversations to get the other user's info
+      final response = await ref.read(dioProvider).get('/chat/conversations');
+      final matches = (response.data as List)
+          .map((json) => Match.fromJson(json as Map<String, dynamic>))
+          .toList();
+      final match = matches.where((m) => m.id == widget.matchId).firstOrNull;
+      if (match != null && mounted) {
+        setState(() => _otherUser = match.otherUser);
+      }
+    } catch (_) {}
+  }
+
+  void _connectSocket() {
+    final socketService = ref.read(socketServiceProvider);
+
+    // Ensure connected
+    socketService.connect();
+
+    // Join this match's room and mark messages as read after joining
+    // Small delay to ensure connection is established
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      socketService.joinRoom(widget.matchId);
+
+      // Mark as read after joining room
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        socketService.markRead(widget.matchId);
+      });
+    });
+
+    // Also mark as read via REST (reliable fallback)
+    _markReadViaRest();
+
+    // Listen for new messages
+    socketService.onNewMessage((data) {
+      if (!mounted) return;
+      final senderId = data['senderId'] as String?;
+      final isMe = senderId == _currentUserId;
+
+      final message = Message(
+        id: data['id'] ?? 'ws_${DateTime.now().millisecondsSinceEpoch}',
+        senderId: senderId ?? '',
+        content: data['content'] ?? '',
+        createdAt: data['createdAt'] != null
+            ? DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now()
+            : DateTime.now(),
+        isMe: isMe,
+        warningType: data['warningType'] as String?,
+      );
+
+      setState(() {
+        // Avoid duplicates (from optimistic add or REST reload)
+        _messages.removeWhere((m) => m.id.startsWith('temp_') && m.content == message.content);
+        // Only add if not already present
+        if (!_messages.any((m) => m.id == message.id)) {
+          _messages.insert(0, message);
+        }
+      });
+
+      // Refresh conversations list so last message + unread counts stay in sync
+      ref.invalidate(conversationsProvider);
+    });
+
+    // Listen for typing indicator
+    socketService.onUserTyping((data) {
+      if (!mounted) return;
+      final isTyping = data['isTyping'] == true;
+      setState(() => _otherUserTyping = isTyping);
+
+      // Auto-clear typing after 3 seconds
+      _typingTimer?.cancel();
+      if (isTyping) {
+        _typingTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _otherUserTyping = false);
+        });
+      }
+    });
+
   }
 
   Future<void> _loadMessages() async {
@@ -29,23 +133,156 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final response = await ref.read(dioProvider).get(
         '/chat/${widget.matchId}/messages',
       );
-      setState(() {
-        _messages = (response.data as List)
-            .map((json) => Message.fromJson(json))
-            .toList();
-        _isLoading = false;
-      });
+
+      final data = response.data;
+      final List<dynamic> messageList;
+
+      if (data is List) {
+        messageList = data;
+      } else if (data is Map && data['messages'] != null) {
+        messageList = data['messages'] as List;
+      } else {
+        messageList = [];
+      }
+
+      if (mounted) {
+        setState(() {
+          _messages = messageList
+              .map((json) => Message.fromJson(json as Map<String, dynamic>))
+              .toList();
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      debugPrint('❌ Load messages error: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load messages';
+        });
+      }
     }
   }
 
-  Future<void> _sendMessage() async {
+  // --- Client-side suspicious content detection ---
+  static final _phoneRegex = RegExp(
+    r'(\+91[\s\-]?\d{10}|\b\d{10}\b|\b\d{5}[\s\-]\d{5}\b)',
+  );
+  static final _urlRegex = RegExp(
+    r'(https?://|www\.)\S+',
+    caseSensitive: false,
+  );
+  static final _socialMediaRegex = RegExp(
+    r'\b(whatsapp|telegram|snapchat|instagram|insta|signal|wechat|fb|facebook)\b',
+    caseSensitive: false,
+  );
+  static final _financialRegex = RegExp(
+    r'\b(send money|pay me|upi|gpay|phonepe|paytm|bank account|account number|ifsc|neft|imps|loan|invest|bitcoin|crypto|western union)\b',
+    caseSensitive: false,
+  );
+
+  /// Returns a warning type if the message contains suspicious content, null otherwise.
+  String? _detectSuspiciousContent(String content) {
+    if (_financialRegex.hasMatch(content)) return 'financial';
+    if (_phoneRegex.hasMatch(content)) return 'phone_number';
+    if (_urlRegex.hasMatch(content) || _socialMediaRegex.hasMatch(content)) {
+      return 'external_link';
+    }
+    return null;
+  }
+
+  String _getBlockWarningTitle(String warningType) {
+    switch (warningType) {
+      case 'financial':
+        return 'Financial Content Detected';
+      case 'phone_number':
+        return 'Phone Number Detected';
+      case 'external_link':
+        return 'External Link Detected';
+      default:
+        return 'Suspicious Content Detected';
+    }
+  }
+
+  String _getBlockWarningBody(String warningType) {
+    switch (warningType) {
+      case 'financial':
+        return 'For your safety, messages containing financial details (UPI, bank accounts, payment requests) are not allowed. Never send money to someone you haven\'t met in person.';
+      case 'phone_number':
+        return 'Sharing phone numbers early can put you at risk. Keep the conversation on the app until you\'ve built trust and met in a safe setting.';
+      case 'external_link':
+        return 'Sharing external links or social media handles early can be risky. Get to know your match on the app first before moving conversations elsewhere.';
+      default:
+        return 'This message contains content that may put your safety at risk. Please review and edit your message.';
+    }
+  }
+
+  Future<void> _showBlockedMessageDialog(String warningType) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.shield_rounded, color: Color(0xFFE65100), size: 36),
+        title: Text(_getBlockWarningTitle(warningType)),
+        content: Text(
+          _getBlockWarningBody(warningType),
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Edit Message'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
 
     final content = _messageController.text.trim();
+
+    // Client-side safety check — block suspicious content
+    final warningType = _detectSuspiciousContent(content);
+    if (warningType != null) {
+      _showBlockedMessageDialog(warningType);
+      return; // Do NOT send the message
+    }
+
     _messageController.clear();
 
+    // Optimistic insert
+    final tempMessage = Message(
+      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      senderId: _currentUserId ?? 'me',
+      content: content,
+      createdAt: DateTime.now(),
+      isMe: true,
+    );
+
+    setState(() {
+      _messages.insert(0, tempMessage);
+    });
+
+    // Send via WebSocket (real-time) — the gateway will broadcast new_message
+    // back to the room, including this sender, which we de-dup above
+    final socketService = ref.read(socketServiceProvider);
+    if (socketService.isConnected) {
+      socketService.sendMessage(widget.matchId, content);
+    } else {
+      // Fallback to REST
+      _sendViaRest(content, tempMessage);
+    }
+
+    // Stop typing indicator
+    socketService.sendTyping(widget.matchId, false);
+
+    // Refresh conversations list so last message updates
+    ref.invalidate(conversationsProvider);
+  }
+
+  Future<void> _sendViaRest(String content, Message tempMessage) async {
     try {
       await ref.read(dioProvider).post(
         '/chat/send',
@@ -56,7 +293,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
       _loadMessages();
     } catch (e) {
-      // Handle error
+      debugPrint('❌ Send message error: $e');
+      if (mounted) {
+        setState(() {
+          _messages.remove(tempMessage);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send message')),
+        );
+      }
+    }
+  }
+
+  Future<void> _markReadViaRest() async {
+    try {
+      await ref.read(dioProvider).post('/chat/read', data: {
+        'matchId': widget.matchId,
+      });
+    } catch (e) {
+      debugPrint('⚠️ Mark read REST fallback failed: $e');
+    }
+  }
+
+  void _onTextChanged(String text) {
+    final socketService = ref.read(socketServiceProvider);
+    if (text.isNotEmpty) {
+      socketService.sendTyping(widget.matchId, true);
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 2), () {
+        socketService.sendTyping(widget.matchId, false);
+      });
     }
   }
 
@@ -64,11 +330,82 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat'),
+        titleSpacing: 0,
+        title: GestureDetector(
+          onTap: _otherUser != null ? _viewProfile : null,
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundImage: _otherUser?.profile?.photos.isNotEmpty == true
+                    ? NetworkImage(_otherUser!.profile!.photos.first)
+                    : null,
+                child: _otherUser?.profile?.photos.isNotEmpty != true
+                    ? Icon(Icons.person, size: 18,
+                        color: Theme.of(context).colorScheme.outline)
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _otherUser?.displayName ?? 'Chat',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (_otherUserTyping)
+                      Text(
+                        'typing...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onPressed: () {},
+            onSelected: (value) {
+              switch (value) {
+                case 'profile':
+                  _viewProfile();
+                  break;
+                case 'report':
+                  _showReportDialog();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 20),
+                    SizedBox(width: 12),
+                    Text('View Profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, size: 20, color: AppTheme.error),
+                    const SizedBox(width: 12),
+                    Text('Report', style: TextStyle(color: AppTheme.error)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -77,18 +414,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                    ? _buildEmptyChat()
-                    : ListView.builder(
-                        controller: _scrollController,
-                        reverse: true,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) {
-                          final message = _messages[_messages.length - 1 - index];
-                          return _buildMessageBubble(message);
-                        },
-                      ),
+                : _errorMessage != null
+                    ? _buildError()
+                    : _messages.isEmpty
+                        ? _buildEmptyChat()
+                        : ListView.builder(
+                            controller: _scrollController,
+                            reverse: true,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _messages.length,
+                            itemBuilder: (context, index) {
+                              return _buildMessageBubble(_messages[index]);
+                            },
+                          ),
           ),
           _buildMessageInput(),
         ],
@@ -96,49 +434,174 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildEmptyChat() {
-    return const Center(
+  Widget _buildError() {
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 60, color: Colors.grey),
-          SizedBox(height: 16),
-          Text('Start the conversation!'),
+          Icon(Icons.error_outline, size: 60, color: Theme.of(context).colorScheme.error),
+          const SizedBox(height: 16),
+          Text(_errorMessage ?? 'Something went wrong'),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _loadMessages();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(Message message) {
-    final isMe = message.senderId != 'other'; // Simplified check
-    
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMe
-              ? Theme.of(context).primaryColor
-              : Colors.grey[200],
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 16),
-          ),
-        ),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        child: Text(
-          message.content,
-          style: TextStyle(
-            color: isMe ? Colors.white : Colors.black87,
-          ),
+  Widget _buildEmptyChat() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.chat_bubble_outline,
+                size: 60, color: Theme.of(context).colorScheme.outline),
+            const SizedBox(height: 16),
+            const Text(
+              'Start the conversation!',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 20),
+            // Safety tip card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.shield_rounded,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Safety Tips',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Keep conversations on the app. '
+                    'Never share financial details or send money to someone you haven\'t met.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildMessageBubble(Message message) {
+    final isMe = message.isMe;
+
+    return Column(
+      crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        // Warning banner for flagged messages (only show for received messages)
+        if (message.warningType != null && !isMe)
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3CD),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFFFD93D).withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    size: 16, color: Color(0xFF856404)),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    _getWarningText(message.warningType!),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF856404),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isMe
+                  ? Theme.of(context).primaryColor
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
+              ),
+            ),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            child: Text(
+              message.content,
+              style: TextStyle(
+                color: isMe
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getWarningText(String warningType) {
+    switch (warningType) {
+      case 'external_link':
+        return 'Be cautious \u2014 this message contains an external link';
+      case 'phone_number':
+        return 'Sharing phone numbers early can be risky';
+      case 'financial':
+        return 'Never send money to someone you haven\'t met';
+      default:
+        return 'Be cautious with this message';
+    }
   }
 
   Widget _buildMessageInput() {
@@ -146,10 +609,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.1),
               offset: const Offset(0, -1),
               blurRadius: 4,
             ),
@@ -160,6 +623,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Expanded(
               child: TextField(
                 controller: _messageController,
+                onChanged: _onTextChanged,
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
                   border: OutlineInputBorder(
@@ -167,7 +631,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Colors.grey[100],
+                  fillColor: Theme.of(context).inputDecorationTheme.fillColor,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 10,
@@ -184,7 +648,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
+                icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
                 onPressed: _sendMessage,
               ),
             ),
@@ -196,8 +660,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    // Leave room and clean up listeners
+    final socketService = ref.read(socketServiceProvider);
+    socketService.leaveRoom(widget.matchId);
+    socketService.off('new_message');
+    socketService.off('user_typing');
+    socketService.off('messages_read');
+    _typingTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+
+    // Refresh conversations list so unread counts update when going back
+    ref.invalidate(conversationsProvider);
+
     super.dispose();
   }
 }

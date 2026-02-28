@@ -142,3 +142,6 @@ Thumbs.db
 *.crt
 secrets/
 credentials/
+
+
+backend/chat-app.json

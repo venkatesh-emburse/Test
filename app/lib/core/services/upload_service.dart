@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
@@ -183,7 +184,7 @@ class UploadService {
   /// Compress image to reasonable size
   Future<List<int>> _compressImage(List<int> bytes) async {
     try {
-      final image = img.decodeImage(bytes as List<int>);
+      final image = img.decodeImage(Uint8List.fromList(bytes));
       if (image == null) return bytes;
 
       // Only compress if image is large

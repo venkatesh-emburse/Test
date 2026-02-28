@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
+import '../../../core/utils/app_theme.dart';
 import '../../../core/api/api_client.dart';
 import 'profile_screen.dart'; // For currentUserProvider
 
@@ -124,7 +125,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -213,15 +214,15 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              color: Colors.blue.shade50,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700),
+                  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Add up to 6 photos. Your first photo will be your main profile picture.',
-                      style: TextStyle(color: Colors.blue.shade700),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ),
                 ],
@@ -279,16 +280,16 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.add_photo_alternate, size: 80, color: Colors.grey[400]),
+          Icon(Icons.add_photo_alternate, size: 80, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
           Text(
             'No photos yet',
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Add photos to complete your profile',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -307,18 +308,18 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: Theme.of(context).inputDecorationTheme.fillColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+          border: Border.all(color: Theme.of(context).dividerColor, style: BorderStyle.solid),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate, size: 48, color: Colors.grey[400]),
+            Icon(Icons.add_photo_alternate, size: 48, color: Theme.of(context).colorScheme.outline),
             const SizedBox(height: 8),
             Text(
               'Add Photo',
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -351,7 +352,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.green,
+                color: AppTheme.success,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
@@ -374,7 +375,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(
-                color: Colors.red,
+                color: AppTheme.error,
                 shape: BoxShape.circle,
               ),
               child: const Icon(

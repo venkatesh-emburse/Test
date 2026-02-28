@@ -49,5 +49,9 @@
 	<string>LiveConnect needs your location to show nearby users and help you connect with people around you.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>LiveConnect needs your location to show nearby users and help you connect with people around you.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LiveConnect needs camera access for verification videos and selfies.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LiveConnect needs microphone access to record verification videos.</string>
 </dict>
 </plist>

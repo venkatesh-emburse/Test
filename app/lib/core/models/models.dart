@@ -7,9 +7,14 @@ class User {
   final DateTime? dateOfBirth;
   final String gender;
   final String intent;
+  final DateTime? intentChangedAt;
   final double safetyScore;
   final bool isVerified;
-  final String currentPlan;
+  final bool showOnMap;
+  final bool isInvisible;
+  final bool isSuspended;
+  final DateTime? lastActiveAt;
+  final DateTime? createdAt;
   final Profile? profile;
 
   User({
@@ -20,9 +25,14 @@ class User {
     this.dateOfBirth,
     required this.gender,
     required this.intent,
+    this.intentChangedAt,
     required this.safetyScore,
     required this.isVerified,
-    required this.currentPlan,
+    this.showOnMap = false,
+    this.isInvisible = false,
+    this.isSuspended = false,
+    this.lastActiveAt,
+    this.createdAt,
     this.profile,
   });
 
@@ -32,14 +42,25 @@ class User {
       name: json['name'],
       phone: json['phone'],
       email: json['email'],
-      dateOfBirth: json['dateOfBirth'] != null 
-          ? DateTime.tryParse(json['dateOfBirth']) 
+      dateOfBirth: json['dateOfBirth'] != null
+          ? DateTime.tryParse(json['dateOfBirth'].toString())
           : null,
       gender: json['gender'] ?? 'other',
       intent: json['intent'] ?? 'casual',
+      intentChangedAt: json['intentChangedAt'] != null
+          ? DateTime.tryParse(json['intentChangedAt'].toString())
+          : null,
       safetyScore: (json['safetyScore'] ?? 0).toDouble(),
       isVerified: json['isVerified'] ?? false,
-      currentPlan: json['currentPlan'] ?? 'free',
+      showOnMap: json['showOnMap'] ?? false,
+      isInvisible: json['isInvisible'] ?? false,
+      isSuspended: json['isSuspended'] ?? false,
+      lastActiveAt: json['lastActiveAt'] != null
+          ? DateTime.tryParse(json['lastActiveAt'].toString())
+          : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
       profile: json['profile'] != null ? Profile.fromJson(json['profile']) : null,
     );
   }
@@ -54,7 +75,7 @@ class User {
     }
     return age;
   }
-  
+
   String get displayName => name ?? 'New User';
   String get displayAge => age?.toString() ?? '?';
 }
@@ -159,6 +180,8 @@ class Message {
   final DateTime createdAt;
   final bool isRead;
   final bool isDeleted;
+  final bool isMe;
+  final String? warningType; // 'external_link' | 'phone_number' | 'financial'
 
   Message({
     required this.id,
@@ -167,16 +190,22 @@ class Message {
     required this.createdAt,
     this.isRead = false,
     this.isDeleted = false,
+    this.isMe = false,
+    this.warningType,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
       id: json['id'],
-      senderId: json['senderId'],
-      content: json['content'],
-      createdAt: DateTime.parse(json['createdAt']),
-      isRead: json['isRead'] ?? false,
+      senderId: json['senderId'] ?? '',
+      content: json['content'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      isRead: json['isRead'] ?? json['readAt'] != null,
       isDeleted: json['isDeleted'] ?? false,
+      isMe: json['isMe'] ?? false,
+      warningType: json['warningType'],
     );
   }
 }
@@ -195,6 +224,7 @@ class DiscoveryProfile {
   final List<String> photos;
   final String? bio;
   final List<String> interests;
+  final DateTime? createdAt;
 
   DiscoveryProfile({
     required this.id,
@@ -209,6 +239,7 @@ class DiscoveryProfile {
     this.photos = const [],
     this.bio,
     this.interests = const [],
+    this.createdAt,
   });
 
   factory DiscoveryProfile.fromJson(Map<String, dynamic> json) {
@@ -225,7 +256,28 @@ class DiscoveryProfile {
       photos: List<String>.from(json['photos'] ?? []),
       bio: json['bio'],
       interests: List<String>.from(json['interests'] ?? []),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
+  }
+
+  /// Returns verification tier based on safety score
+  String get verificationTier {
+    if (safetyScore >= 80) return 'Trusted';
+    if (safetyScore >= 60) return 'Verified';
+    if (safetyScore >= 30) return 'Basic';
+    return 'New';
+  }
+
+  /// Returns member since label (e.g. "Jan 2026")
+  String? get memberSince {
+    if (createdAt == null) return null;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[createdAt!.month - 1]} ${createdAt!.year}';
   }
 }
 
@@ -256,70 +308,41 @@ class Signal {
   }
 }
 
-// Subscription Status
-class SubscriptionStatus {
-  final String currentPlan;
-  final bool isActive;
-  final DateTime? expiresAt;
-  final PlanFeatures features;
-  final int? daysRemaining;
-  final bool canUpgrade;
+// Safety Score Log Model — tracks score change history
+class SafetyScoreLog {
+  final String id;
+  final double previousScore;
+  final double newScore;
+  final double changeAmount;
+  final String reason;
+  final String category; // verification, profile, behavioral, activity, report_penalty, admin_action
+  final DateTime createdAt;
 
-  SubscriptionStatus({
-    required this.currentPlan,
-    required this.isActive,
-    this.expiresAt,
-    required this.features,
-    this.daysRemaining,
-    required this.canUpgrade,
+  SafetyScoreLog({
+    required this.id,
+    required this.previousScore,
+    required this.newScore,
+    required this.changeAmount,
+    required this.reason,
+    required this.category,
+    required this.createdAt,
   });
 
-  factory SubscriptionStatus.fromJson(Map<String, dynamic> json) {
-    return SubscriptionStatus(
-      currentPlan: json['currentPlan'],
-      isActive: json['isActive'] ?? false,
-      expiresAt: json['expiresAt'] != null
-          ? DateTime.parse(json['expiresAt'])
-          : null,
-      features: PlanFeatures.fromJson(json['features']),
-      daysRemaining: json['daysRemaining'],
-      canUpgrade: json['canUpgrade'] ?? true,
+  factory SafetyScoreLog.fromJson(Map<String, dynamic> json) {
+    return SafetyScoreLog(
+      id: json['id'],
+      previousScore: (json['previousScore'] ?? 0).toDouble(),
+      newScore: (json['newScore'] ?? 0).toDouble(),
+      changeAmount: (json['changeAmount'] ?? 0).toDouble(),
+      reason: json['reason'] ?? '',
+      category: json['category'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
+
+  bool get isPositive => changeAmount > 0;
+  bool get isNegative => changeAmount < 0;
 }
 
-// Plan Features
-class PlanFeatures {
-  final int swipesPerDay;
-  final int superLikesPerDay;
-  final bool undoSwipe;
-  final bool seeWhoLiked;
-  final bool readReceipts;
-  final int maxRadiusKm;
-  final bool priorityDiscovery;
-  final bool noAds;
-
-  PlanFeatures({
-    required this.swipesPerDay,
-    required this.superLikesPerDay,
-    required this.undoSwipe,
-    required this.seeWhoLiked,
-    required this.readReceipts,
-    required this.maxRadiusKm,
-    required this.priorityDiscovery,
-    required this.noAds,
-  });
-
-  factory PlanFeatures.fromJson(Map<String, dynamic> json) {
-    return PlanFeatures(
-      swipesPerDay: json['swipesPerDay'] ?? 20,
-      superLikesPerDay: json['superLikesPerDay'] ?? 1,
-      undoSwipe: json['undoSwipe'] ?? false,
-      seeWhoLiked: json['seeWhoLiked'] ?? false,
-      readReceipts: json['readReceipts'] ?? false,
-      maxRadiusKm: json['maxRadiusKm'] ?? 25,
-      priorityDiscovery: json['priorityDiscovery'] ?? false,
-      noAds: json['noAds'] ?? false,
-    );
-  }
-}

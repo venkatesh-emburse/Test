@@ -9,9 +9,9 @@ import { Signal } from '../../database/entities/signal.entity';
 import { Match } from '../../database/entities/match.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, Signal, Match])],
-    controllers: [SignalsController],
-    providers: [SignalsService],
-    exports: [SignalsService],
+  imports: [TypeOrmModule.forFeature([User, Signal, Match])],
+  controllers: [SignalsController],
+  providers: [SignalsService],
+  exports: [SignalsService],
 })
-export class SignalsModule { }
+export class SignalsModule {}

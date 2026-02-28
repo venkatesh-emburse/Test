@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,15 +11,15 @@ import '../../features/discovery/screens/home_screen.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/manage_photos_screen.dart';
+import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/location/screens/map_screen.dart';
 import '../../features/safety/screens/safety_screen.dart';
-import '../../features/premium/screens/premium_screen.dart';
 import '../api/api_client.dart';
 
-// Shell navigation for bottom nav bar
-class ShellScreen extends StatelessWidget {
+// Shell navigation for bottom nav bar with back-button handling
+class ShellScreen extends StatefulWidget {
   final Widget child;
   final int currentIndex;
 
@@ -29,49 +30,95 @@ class ShellScreen extends StatelessWidget {
   });
 
   @override
+  State<ShellScreen> createState() => _ShellScreenState();
+}
+
+class _ShellScreenState extends State<ShellScreen> {
+  DateTime? _lastBackPressTime;
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              context.go('/discovery');
-              break;
-            case 1:
-              context.go('/map');
-              break;
-            case 2:
-              context.go('/chat');
-              break;
-            case 3:
-              context.go('/profile');
-              break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Discover',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        // If not on Discovery tab, go back to Discovery
+        if (widget.currentIndex != 0) {
+          context.go('/discovery');
+          return;
+        }
+
+        // On Discovery tab: double-back-to-exit
+        final now = DateTime.now();
+        if (_lastBackPressTime != null &&
+            now.difference(_lastBackPressTime!) < const Duration(seconds: 2)) {
+          // Exit the app
+          SystemNavigator.pop();
+          return;
+        }
+
+        _lastBackPressTime = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: Duration(seconds: 2),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Map',
+        );
+      },
+      child: Scaffold(
+        body: widget.child,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).dividerTheme.color ?? Colors.grey.shade200,
+                width: 0.5,
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+          child: NavigationBar(
+          selectedIndex: widget.currentIndex,
+          onDestinationSelected: (index) {
+            switch (index) {
+              case 0:
+                context.go('/discovery');
+                break;
+              case 1:
+                context.go('/map');
+                break;
+              case 2:
+                context.go('/chat');
+                break;
+              case 3:
+                context.go('/profile');
+                break;
+            }
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.favorite_outline_rounded),
+              selectedIcon: Icon(Icons.favorite_rounded),
+              label: 'Discover',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.location_on_outlined),
+              selectedIcon: Icon(Icons.location_on_rounded),
+              label: 'Map',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              selectedIcon: Icon(Icons.chat_bubble_rounded),
+              label: 'Chat',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profile',
+            ),
+          ],
+        ),
+        ),
       ),
     );
   }
@@ -81,12 +128,19 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
-      // Let splash screen handle initial auth navigation
-      // This prevents infinite loops caused by reactive state changes
-      final isSplash = state.matchedLocation == '/';
-      if (isSplash) return null;
-      
-      // All other navigation is handled by screens themselves
+      final location = state.matchedLocation;
+
+      // Auth routes — always allowed
+      const authRoutes = ['/', '/auth/login', '/auth/otp', '/auth/onboarding'];
+      if (authRoutes.contains(location)) return null;
+
+      // For all main app routes, check profile completion
+      final token = ref.read(authTokenProvider);
+      if (token == null) return '/auth/login';
+
+      final profileComplete = ref.read(profileCompleteProvider);
+      if (profileComplete == false) return '/auth/onboarding';
+
       return null;
     },
     routes: [
@@ -151,20 +205,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Edit Profile (outside shell to have back button)
+      GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+
       // Profile Photos (outside shell to have back button)
       GoRoute(
         path: '/profile/photos',
         builder: (context, state) => const ManagePhotosScreen(),
       ),
 
-      // Safety & Premium
+      // Safety
       GoRoute(
         path: '/safety',
         builder: (context, state) => const SafetyScreen(),
-      ),
-      GoRoute(
-        path: '/premium',
-        builder: (context, state) => const PremiumScreen(),
       ),
     ],
   );

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/services/firebase_auth_service.dart';
+import '../../../core/utils/app_theme.dart';
 
+/// OTP Screen for optional phone verification (boosts safety score)
 class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
 
@@ -49,49 +51,30 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     try {
       final firebaseAuth = ref.read(firebaseAuthServiceProvider);
       
-      // Verify OTP with Firebase
-      debugPrint('🔐 Verifying OTP: $_otp');
-      await firebaseAuth.verifyOtp(_otp);
+      // Verify OTP and link phone to account
+      debugPrint('🔐 Verifying OTP and linking phone...');
+      await firebaseAuth.verifyOtpAndLinkPhone(_otp);
       
-      // Get Firebase ID token
-      final idToken = await firebaseAuth.getIdToken();
-      if (idToken == null) {
-        throw Exception('Failed to get Firebase token');
-      }
-      
-      debugPrint('✅ Firebase verification successful');
-      
-      // Exchange Firebase token for app tokens
-      final response = await ref.read(dioProvider).post(
-        '/auth/firebase/verify',
-        data: {'idToken': idToken},
+      // Notify backend about phone verification to boost safety score
+      await ref.read(dioProvider).post(
+        '/auth/verify-phone',
+        data: {'phone': widget.phone},
       );
-
-      final accessToken = response.data['accessToken'];
-      final refreshToken = response.data['refreshToken'];
-      final isNewUser = response.data['isNewUser'] ?? false;
-
-      debugPrint('✅ Backend token received. Is new user: $isNewUser');
-
-      // Save tokens
-      final storage = ref.read(secureStorageProvider);
-      await storage.write(key: 'access_token', value: accessToken);
-      await storage.write(key: 'refresh_token', value: refreshToken);
-
-      ref.read(authTokenProvider.notifier).state = accessToken;
+      
+      debugPrint('✅ Phone verified successfully!');
 
       if (mounted) {
-        if (isNewUser) {
-          debugPrint('Navigating to onboarding...');
-          context.go('/auth/onboarding');
-        } else {
-          debugPrint('Navigating to discovery...');
-          context.go('/discovery');
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phone verified! Safety score increased by 15 points.'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+        context.pop();
       }
     } catch (e) {
-      debugPrint('❌ OTP Verification Error: $e');
-      String errorMessage = 'Invalid OTP. Please try again.';
+      debugPrint('❌ Phone verification error: $e');
+      String errorMessage = 'Verification failed. Please try again.';
       
       if (e.toString().contains('invalid-verification-code')) {
         errorMessage = 'Invalid OTP code. Please check and try again.';
@@ -142,26 +125,20 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       },
       onAutoVerified: (credential) async {
         try {
-          await firebaseAuth.signInWithCredential(credential);
-          final idToken = await firebaseAuth.getIdToken();
-          if (idToken != null) {
-            final response = await ref.read(dioProvider).post(
-              '/auth/firebase/verify',
-              data: {'idToken': idToken},
+          await firebaseAuth.linkPhoneWithCredential(credential);
+          await ref.read(dioProvider).post(
+            '/auth/verify-phone',
+            data: {'phone': phone},
+          );
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Phone verified! Safety score increased.'),
+                backgroundColor: AppTheme.success,
+              ),
             );
-            
-            final accessToken = response.data['accessToken'];
-            final refreshToken = response.data['refreshToken'];
-            final isNewUser = response.data['isNewUser'] ?? false;
-            
-            final storage = ref.read(secureStorageProvider);
-            await storage.write(key: 'access_token', value: accessToken);
-            await storage.write(key: 'refresh_token', value: refreshToken);
-            ref.read(authTokenProvider.notifier).state = accessToken;
-            
-            if (mounted) {
-              context.go(isNewUser ? '/auth/onboarding' : '/discovery');
-            }
+            context.pop();
           }
         } catch (e) {
           if (mounted) {
@@ -181,8 +158,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/auth/login'),
+          onPressed: () => context.pop(),
         ),
+        title: const Text('Verify Phone'),
       ),
       body: SafeArea(
         child: Padding(
@@ -190,10 +168,45 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Safety score boost message
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.success.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.shield, color: AppTheme.success, size: 32),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '+15 Safety Points',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.success,
+                            ),
+                          ),
+                          Text(
+                            'Verify your phone to boost your safety score',
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
               const Text(
                 'Enter OTP',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -201,11 +214,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               Text(
                 'We sent a verification code to ${widget.phone}',
                 style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               // OTP Input Fields
               Row(
@@ -248,13 +261,28 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.error.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: AppTheme.error),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               // Verify Button
               SizedBox(
@@ -270,7 +298,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Verify'),
+                      : const Text('Verify & Boost Score'),
                 ),
               ),
 
@@ -281,6 +309,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 child: TextButton(
                   onPressed: _isLoading ? null : _resendOtp,
                   child: const Text('Resend OTP'),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Skip button
+              Center(
+                child: TextButton(
+                  onPressed: () => context.pop(),
+                  child: Text(
+                    'Skip for now',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
                 ),
               ),
             ],

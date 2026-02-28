@@ -34,30 +34,16 @@ export default () => ({
     expiryMinutes: parseInt(process.env.OTP_EXPIRY_MINUTES || '10', 10),
   },
 
-  // Agora
-  agora: {
-    appId: process.env.AGORA_APP_ID || '',
-    appCertificate: process.env.AGORA_APP_CERTIFICATE || '',
-  },
-
-  // RevenueCat
-  revenueCat: {
-    apiKey: process.env.REVENUECAT_API_KEY || '',
-  },
-
-  // AWS S3 (legacy - keeping for reference)
-  aws: {
-    region: process.env.AWS_REGION || 'ap-south-1',
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-    s3Bucket: process.env.AWS_S3_BUCKET || '',
-  },
-
   // Cloudinary (for photo/video uploads)
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',
     apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  },
+
+  // Admin (manual review)
+  admin: {
+    apiKey: process.env.ADMIN_API_KEY || 'dev-admin-key',
   },
 
   // Google Maps
