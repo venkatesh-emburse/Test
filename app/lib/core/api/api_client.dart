@@ -19,8 +19,8 @@ String get _host {
   return 'localhost'; // iOS simulator
 }
 
-String get baseUrl => 'https://c4e8-2405-201-c062-c870-941e-8250-2e23-4e97.ngrok-free.app/api/v1';
-String get wsUrl => 'https://c4e8-2405-201-c062-c870-941e-8250-2e23-4e97.ngrok-free.app';
+String get baseUrl => 'https://fcfe-2405-201-c011-49ce-d5ca-a969-1f7f-7c33.ngrok-free.app/api/v1';
+String get wsUrl => 'https://fcfe-2405-201-c011-49ce-d5ca-a969-1f7f-7c33.ngrok-free.app';
 
 // Secure Storage Provider
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
