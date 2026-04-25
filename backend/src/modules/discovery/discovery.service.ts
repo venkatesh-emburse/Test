@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, In } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 
 import { User } from '../../database/entities/user.entity';
@@ -135,22 +135,14 @@ export class DiscoveryService {
     // MVP: Check daily limits (applies to all users)
     const swipesLimit =
       this.configService.get<number>('features.swipesPerDay') || 50;
-    const superLikesLimit =
-      this.configService.get<number>('features.superLikesPerDay') || 5;
+
+    if (action === SwipeAction.SUPER_LIKE) {
+      throw new BadRequestException('Super likes are no longer available');
+    }
 
     if (currentUser.swipesToday >= swipesLimit) {
       throw new ForbiddenException(
         `Daily swipe limit (${swipesLimit}) reached. Come back tomorrow!`,
-      );
-    }
-
-    // Check super like daily limit
-    if (
-      action === SwipeAction.SUPER_LIKE &&
-      currentUser.superLikesToday >= superLikesLimit
-    ) {
-      throw new ForbiddenException(
-        `Daily super like limit (${superLikesLimit}) reached. Come back tomorrow!`,
       );
     }
 
@@ -164,9 +156,6 @@ export class DiscoveryService {
 
     // Update daily counter
     currentUser.swipesToday += 1;
-    if (action === SwipeAction.SUPER_LIKE) {
-      currentUser.superLikesToday += 1;
-    }
     await this.userRepository.save(currentUser);
 
     // Swipe pattern detection — check for bot-like behavior
@@ -176,17 +165,13 @@ export class DiscoveryService {
     let isMatch = false;
     let match = null;
 
-    if (action === SwipeAction.SUPER_LIKE) {
-      // Super crush: immediately create match with chat unlocked
-      isMatch = true;
-      match = await this.createMatch(userId, targetUserId, true);
-    } else if (action === SwipeAction.LIKE) {
+    if (action === SwipeAction.LIKE) {
       // Normal like: check for mutual like
       const mutualSwipe = await this.swipeRepository.findOne({
         where: {
           swiperId: targetUserId,
           swipedId: userId,
-          action: In([SwipeAction.LIKE, SwipeAction.SUPER_LIKE]),
+          action: SwipeAction.LIKE,
         },
       });
 
@@ -212,6 +197,54 @@ export class DiscoveryService {
           }
         : undefined,
     };
+  }
+
+  async getReceivedLikes(userId: string) {
+    const likes = await this.swipeRepository
+      .createQueryBuilder('swipe')
+      .leftJoinAndSelect('swipe.swiper', 'user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('swipe.swipedId = :userId', { userId })
+      .andWhere('swipe.action = :action', { action: SwipeAction.LIKE })
+      .andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Swipe, 'mySwipe')
+          .where('mySwipe.swiperId = :userId', { userId })
+          .andWhere('mySwipe.swipedId = swipe.swiperId')
+          .getQuery();
+
+        return `NOT EXISTS ${subQuery}`;
+      })
+      .andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Match, 'match')
+          .where(
+            '((match.user1Id = :userId AND match.user2Id = swipe.swiperId) OR (match.user2Id = :userId AND match.user1Id = swipe.swiperId))',
+            { userId },
+          )
+          .andWhere('match.isActive = :isActive', { isActive: true })
+          .getQuery();
+
+        return `NOT EXISTS ${subQuery}`;
+      })
+      .orderBy('swipe.createdAt', 'DESC')
+      .getMany();
+
+    return likes.map((like) => ({
+      userId: like.swiper.id,
+      name: like.swiper.name,
+      age: this.calculateAge(like.swiper.dateOfBirth),
+      intent: like.swiper.intent,
+      bio: like.swiper.profile?.bio,
+      photos: like.swiper.profile?.photos || [],
+      safetyScore: Number(like.swiper.safetyScore),
+      isVerified: like.swiper.isVerified,
+      likedAt: like.createdAt,
+    }));
   }
 
   // ==================== MATCHES ====================
@@ -379,7 +412,6 @@ export class DiscoveryService {
 
     if (!user.countersResetAt || new Date(user.countersResetAt) < today) {
       user.swipesToday = 0;
-      user.superLikesToday = 0;
       user.countersResetAt = today;
       await this.userRepository.save(user);
     }
@@ -473,7 +505,7 @@ export class DiscoveryService {
 
       // Check 1: Right-swipe rate > 90%
       const likeSwipes = todaysSwipes.filter(
-        (s) => s.action === SwipeAction.LIKE || s.action === SwipeAction.SUPER_LIKE,
+        (s) => s.action === SwipeAction.LIKE,
       );
       const likeRate = likeSwipes.length / todaysSwipes.length;
 

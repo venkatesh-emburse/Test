@@ -23,6 +23,12 @@ class SocketService {
   void connect() {
     if (_isConnected && _socket != null) return;
 
+    if (_socket != null && !_isConnected) {
+      debugPrint('🔌 Socket: Reusing existing socket for reconnect');
+      _socket!.connect();
+      return;
+    }
+
     final token = _ref.read(authTokenProvider);
     if (token == null) {
       debugPrint('🔌 Socket: No token, skipping connect');
@@ -78,6 +84,18 @@ class SocketService {
   void joinRoom(String matchId) {
     _socket?.emit('join_room', {'matchId': matchId});
     debugPrint('📫 Socket: Joining room $matchId');
+  }
+
+  /// Run immediately if connected, otherwise once on connect.
+  void whenConnected(VoidCallback callback) {
+    if (_isConnected) {
+      callback();
+      return;
+    }
+
+    _socket?.once('connected', (_) {
+      callback();
+    });
   }
 
   /// Leave a chat room.

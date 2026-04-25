@@ -37,7 +37,8 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await ref.read(dioProvider).get('/profile');
-      final photos = response.data['profile']?['photos'] as List<dynamic>? ?? [];
+      final photos =
+          response.data['profile']?['photos'] as List<dynamic>? ?? [];
       setState(() {
         _photos = photos.map((p) => p.toString()).toList();
         _isLoading = false;
@@ -56,7 +57,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        maxWidth: 800,  // Reduced from 1080
+        maxWidth: 800, // Reduced from 1080
         maxHeight: 1000, // Reduced from 1350
         imageQuality: 60, // Reduced from 85 to make uploads smaller
       );
@@ -82,7 +83,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
 
       if (uploadResponse.data['success'] == true) {
         final photoUrl = uploadResponse.data['secureUrl'];
-        
+
         // Add photo to profile
         await ref.read(dioProvider).post(
           '/profile/photos',
@@ -90,10 +91,10 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
         );
 
         await _loadPhotos();
-        
+
         // Also invalidate the profile screen's user provider
         ref.invalidate(currentUserProvider);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Photo uploaded successfully!')),
@@ -137,10 +138,10 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
     try {
       await ref.read(dioProvider).delete('/profile/photos/$index');
       await _loadPhotos();
-      
+
       // Also invalidate the profile screen's user provider
       ref.invalidate(currentUserProvider);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo deleted')),
@@ -187,8 +188,16 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Manage Photos'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MEDIA GRID', style: Theme.of(context).textTheme.labelSmall),
+            Text('Manage Photos',
+                style: Theme.of(context).textTheme.headlineMedium),
+          ],
+        ),
         actions: [
           if (_photos.length < 6)
             IconButton(
@@ -197,80 +206,102 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
             ),
         ],
       ),
-      body: _buildBody(),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surfaceContainerLow,
+              Theme.of(context).colorScheme.surface,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: _buildContent(),
+            ),
+            // Upload overlay
+            if (_isUploading)
+              Container(
+                color: Colors.black54,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 16),
+                      Text(
+                        'Uploading...',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildContent() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            // Info banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Add up to 6 photos. Your first photo will be your main profile picture.',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ),
-                ],
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHigh
+                .withValues(alpha: 0.84),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Add up to 6 photos. Your first photo will be your main profile picture.',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
               ),
-            ),
-
-            // Photos grid
-            Expanded(
-              child: _photos.isEmpty
-                  ? _buildEmptyState()
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(16),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 0.75,
-                      ),
-                      itemCount: _photos.length + (_photos.length < 6 ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == _photos.length) {
-                          return _buildAddPhotoCard();
-                        }
-                        return _buildPhotoCard(index);
-                      },
-                    ),
-            ),
-          ],
+            ],
+          ),
         ),
 
-        // Upload overlay
-        if (_isUploading)
-          Container(
-            color: Colors.black54,
-            child: const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: Colors.white),
-                  SizedBox(height: 16),
-                  Text(
-                    'Uploading...',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+        // Photos grid
+        Expanded(
+          child: _photos.isEmpty
+              ? _buildEmptyState()
+              : GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.75,
                   ),
-                ],
-              ),
-            ),
-          ),
+                  itemCount: _photos.length + (_photos.length < 6 ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _photos.length) {
+                      return _buildAddPhotoCard();
+                    }
+                    return _buildPhotoCard(index);
+                  },
+                ),
+        ),
       ],
     );
   }
@@ -280,16 +311,20 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.add_photo_alternate, size: 80, color: Theme.of(context).colorScheme.outline),
+          Icon(Icons.add_photo_alternate,
+              size: 80, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
           Text(
             'No photos yet',
-            style: TextStyle(fontSize: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+                fontSize: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
             'Add photos to complete your profile',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -305,21 +340,25 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
   Widget _buildAddPhotoCard() {
     return InkWell(
       onTap: _showAddPhotoOptions,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(4),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).inputDecorationTheme.fillColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).dividerColor, style: BorderStyle.solid),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHigh
+              .withValues(alpha: 0.84),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate, size: 48, color: Theme.of(context).colorScheme.outline),
+            Icon(Icons.add_photo_alternate,
+                size: 48, color: Theme.of(context).colorScheme.outline),
             const SizedBox(height: 8),
             Text(
               'Add Photo',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -336,7 +375,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
         // Photo
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(4),
             image: DecorationImage(
               image: NetworkImage(photoUrl),
               fit: BoxFit.cover,
@@ -353,7 +392,7 @@ class _ManagePhotosScreenState extends ConsumerState<ManagePhotosScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppTheme.success,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
                 'Main',

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
@@ -65,7 +65,7 @@ class UploadService {
         isProfile: isProfile,
       );
     } catch (e) {
-      print('Error picking photo: $e');
+      debugPrint('Error picking photo: $e');
       return null;
     }
   }
@@ -93,7 +93,7 @@ class UploadService {
         isProfile: isProfile,
       );
     } catch (e) {
-      print('Error taking photo: $e');
+      debugPrint('Error taking photo: $e');
       return null;
     }
   }
@@ -106,10 +106,10 @@ class UploadService {
     try {
       // Read and convert to base64
       final bytes = await file.readAsBytes();
-      
+
       // Compress if needed
       final compressed = await _compressImage(bytes);
-      
+
       final base64String = base64Encode(compressed);
       final mimeType = _getMimeType(file.path);
 
@@ -124,7 +124,7 @@ class UploadService {
 
       return UploadResult.fromJson(response.data);
     } catch (e) {
-      print('Error uploading photo: $e');
+      debugPrint('Error uploading photo: $e');
       return null;
     }
   }
@@ -141,7 +141,7 @@ class UploadService {
 
       return await uploadVideo(File(pickedFile.path));
     } catch (e) {
-      print('Error picking video: $e');
+      debugPrint('Error picking video: $e');
       return null;
     }
   }
@@ -161,7 +161,7 @@ class UploadService {
 
       return UploadResult.fromJson(response.data);
     } catch (e) {
-      print('Error uploading video: $e');
+      debugPrint('Error uploading video: $e');
       return null;
     }
   }
@@ -176,7 +176,7 @@ class UploadService {
 
       return response.data['success'] ?? false;
     } catch (e) {
-      print('Error deleting photo: $e');
+      debugPrint('Error deleting photo: $e');
       return false;
     }
   }
@@ -267,14 +267,16 @@ class UploadNotifier extends StateNotifier<UploadState> {
     state = state.copyWith(isUploading: true, progress: 0);
 
     try {
-      final result = await _uploadService.pickAndUploadPhoto(isProfile: isProfile);
-      
+      final result =
+          await _uploadService.pickAndUploadPhoto(isProfile: isProfile);
+
       if (result != null) {
-        state = state.copyWith(isUploading: false, progress: 1.0, result: result);
+        state =
+            state.copyWith(isUploading: false, progress: 1.0, result: result);
       } else {
         state = state.copyWith(isUploading: false, error: 'Upload cancelled');
       }
-      
+
       return result;
     } catch (e) {
       state = state.copyWith(isUploading: false, error: e.toString());
@@ -286,14 +288,16 @@ class UploadNotifier extends StateNotifier<UploadState> {
     state = state.copyWith(isUploading: true, progress: 0);
 
     try {
-      final result = await _uploadService.takeAndUploadPhoto(isProfile: isProfile);
-      
+      final result =
+          await _uploadService.takeAndUploadPhoto(isProfile: isProfile);
+
       if (result != null) {
-        state = state.copyWith(isUploading: false, progress: 1.0, result: result);
+        state =
+            state.copyWith(isUploading: false, progress: 1.0, result: result);
       } else {
         state = state.copyWith(isUploading: false, error: 'Upload cancelled');
       }
-      
+
       return result;
     } catch (e) {
       state = state.copyWith(isUploading: false, error: e.toString());
@@ -306,6 +310,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
   }
 }
 
-final uploadNotifierProvider = StateNotifierProvider<UploadNotifier, UploadState>((ref) {
+final uploadNotifierProvider =
+    StateNotifierProvider<UploadNotifier, UploadState>((ref) {
   return UploadNotifier(ref.read(uploadServiceProvider));
 });

@@ -35,23 +35,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _checkAuth() async {
-    print('\u{1F680} Splash: Starting auth check...');
+    debugPrint('\u{1F680} Splash: Starting auth check...');
     await Future.delayed(const Duration(seconds: 2));
 
     final storage = ref.read(secureStorageProvider);
     final token = await storage.read(key: 'access_token');
-    print('\u{1F511} Splash: Token exists: ${token != null}');
+    debugPrint('\u{1F511} Splash: Token exists: ${token != null}');
 
     if (token != null) {
       ref.read(authTokenProvider.notifier).state = token;
 
       // Verify token is still valid
       try {
-        print('\u{1F4E1} Splash: Calling /auth/me...');
+        debugPrint('\u{1F4E1} Splash: Calling /auth/me...');
         final response = await ref.read(dioProvider).get('/auth/me');
-        print('\u2705 Splash: /auth/me success');
-        final profileComplete = response.data['user']?['profileComplete'] ?? false;
-        print('\u{1F464} Splash: Profile complete: $profileComplete');
+        debugPrint('\u2705 Splash: /auth/me success');
+        final profileComplete =
+            response.data['user']?['profileComplete'] ?? false;
+        debugPrint('\u{1F464} Splash: Profile complete: $profileComplete');
         ref.read(profileCompleteProvider.notifier).state = profileComplete;
 
         // Update location, connect socket, and init notifications on every app launch (non-blocking)
@@ -63,19 +64,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
         if (mounted) {
           if (profileComplete) {
-            print('\u27A1\uFE0F Navigating to /discovery');
+            debugPrint('\u27A1\uFE0F Navigating to /discovery');
             context.go('/discovery');
           } else {
-            print('\u27A1\uFE0F Navigating to /auth/onboarding');
+            debugPrint('\u27A1\uFE0F Navigating to /auth/onboarding');
             context.go('/auth/onboarding');
           }
         }
       } catch (e) {
-        print('\u274C Splash: /auth/me failed: $e');
+        debugPrint('\u274C Splash: /auth/me failed: $e');
         if (mounted) context.go('/auth/login');
       }
     } else {
-      print('\u27A1\uFE0F Navigating to /auth/login (no token)');
+      debugPrint('\u27A1\uFE0F Navigating to /auth/login (no token)');
       if (mounted) context.go('/auth/login');
     }
   }

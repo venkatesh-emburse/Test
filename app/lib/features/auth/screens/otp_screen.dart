@@ -50,23 +50,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     try {
       final firebaseAuth = ref.read(firebaseAuthServiceProvider);
-      
+
       // Verify OTP and link phone to account
       debugPrint('🔐 Verifying OTP and linking phone...');
       await firebaseAuth.verifyOtpAndLinkPhone(_otp);
-      
+
       // Notify backend about phone verification to boost safety score
       await ref.read(dioProvider).post(
         '/auth/verify-phone',
         data: {'phone': widget.phone},
       );
-      
+
       debugPrint('✅ Phone verified successfully!');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Phone verified! Safety score increased by 15 points.'),
+            content:
+                Text('Phone verified! Safety score increased by 15 points.'),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -75,13 +76,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     } catch (e) {
       debugPrint('❌ Phone verification error: $e');
       String errorMessage = 'Verification failed. Please try again.';
-      
+
       if (e.toString().contains('invalid-verification-code')) {
         errorMessage = 'Invalid OTP code. Please check and try again.';
       } else if (e.toString().contains('session-expired')) {
         errorMessage = 'OTP expired. Please request a new one.';
       }
-      
+
       setState(() => _error = errorMessage);
     } finally {
       if (mounted) {
@@ -89,21 +90,21 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       }
     }
   }
-  
+
   Future<void> _resendOtp() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    
+
     String phone = Uri.decodeComponent(widget.phone);
     phone = phone.replaceAll(' ', '');
     if (!phone.startsWith('+')) {
       phone = '+$phone';
     }
-    
+
     final firebaseAuth = ref.read(firebaseAuthServiceProvider);
-    
+
     await firebaseAuth.verifyPhoneNumber(
       phoneNumber: phone,
       onCodeSent: (verificationId) {
@@ -130,7 +131,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             '/auth/verify-phone',
             data: {'phone': phone},
           );
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -154,6 +155,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -162,170 +164,211 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         ),
         title: const Text('Verify Phone'),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Safety score boost message
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.success.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scheme.surface,
+              scheme.surfaceContainerLow,
+              scheme.surface
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+                top: -100,
+                left: -50,
+                child: _buildAura(
+                    AppTheme.primaryColor.withValues(alpha: 0.14), 220)),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.shield, color: AppTheme.success, size: 32),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
                         children: [
-                          const Text(
-                            '+15 Safety Points',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.success,
+                          const Icon(Icons.shield,
+                              color: AppTheme.success, size: 32),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '+15 Safety Points',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.success,
+                                  ),
+                                ),
+                                Text(
+                                  'Verify your phone to boost your safety score',
+                                  style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontSize: 13),
+                                ),
+                              ],
                             ),
                           ),
-                          Text(
-                            'Verify your phone to boost your safety score',
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
-                          ),
                         ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    Text('PHONE LOCK',
+                        style: Theme.of(context).textTheme.labelSmall),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enter OTP',
+                      style: Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'We sent a verification code to ${widget.phone}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // OTP Input Fields
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(6, (index) {
+                        return SizedBox(
+                          width: 48,
+                          child: TextField(
+                            controller: _controllers[index],
+                            focusNode: _focusNodes[index],
+                            textAlign: TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            maxLength: 1,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onChanged: (value) {
+                              if (value.isNotEmpty && index < 5) {
+                                _focusNodes[index + 1].requestFocus();
+                              }
+                              if (value.isEmpty && index > 0) {
+                                _focusNodes[index - 1].requestFocus();
+                              }
+                              if (_otp.length == 6) {
+                                _verifyOtp();
+                              }
+                            },
+                          ),
+                        );
+                      }),
+                    ),
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: AppTheme.error, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: AppTheme.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 24),
+
+                    // Verify Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _verifyOtp,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Verify & Boost Score'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Resend OTP
+                    Center(
+                      child: TextButton(
+                        onPressed: _isLoading ? null : _resendOtp,
+                        child: const Text('Resend OTP'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Skip button
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.pop(),
+                        child: Text(
+                          'Skip for now',
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              
-              const SizedBox(height: 24),
-              
-              const Text(
-                'Enter OTP',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'We sent a verification code to ${widget.phone}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // OTP Input Fields
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 48,
-                    child: TextField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      textAlign: TextAlign.center,
-                      keyboardType: TextInputType.number,
-                      maxLength: 1,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && index < 5) {
-                          _focusNodes[index + 1].requestFocus();
-                        }
-                        if (value.isEmpty && index > 0) {
-                          _focusNodes[index - 1].requestFocus();
-                        }
-                        if (_otp.length == 6) {
-                          _verifyOtp();
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-
-              if (_error != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.error.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: AppTheme.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Verify Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _verifyOtp,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Verify & Boost Score'),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Resend OTP
-              Center(
-                child: TextButton(
-                  onPressed: _isLoading ? null : _resendOtp,
-                  child: const Text('Resend OTP'),
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Skip button
-              Center(
-                child: TextButton(
-                  onPressed: () => context.pop(),
-                  child: Text(
-                    'Skip for now',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ),
-            ],
-          ),
+  Widget _buildAura(Color color, double size) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       ),
     );

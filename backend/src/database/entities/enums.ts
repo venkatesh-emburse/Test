@@ -38,6 +38,7 @@ export enum SignalType {
 
 export enum ReportReason {
   FAKE_PROFILE = 'fake_profile',
+  IMPERSONATION = 'impersonation',
   INAPPROPRIATE_CONTENT = 'inappropriate_content',
   HARASSMENT = 'harassment',
   SPAM = 'spam',

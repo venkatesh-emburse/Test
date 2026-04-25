@@ -15,8 +15,9 @@ import { User } from '../../database/entities/user.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { OtpCode, OtpPurpose } from '../../database/entities/otp-code.entity';
 import { RefreshToken } from '../../database/entities/refresh-token.entity';
-import { UserIntent, Gender } from '../../database/entities/enums';
+import { UserIntent, Gender, ScoreChangeCategory } from '../../database/entities/enums';
 import { EmailService } from '../email/email.service';
+import { SafetyService } from '../safety/safety.service';
 import {
   SendPhoneOtpDto,
   SendEmailOtpDto,
@@ -24,6 +25,7 @@ import {
   VerifyEmailOtpDto,
   SetIntentDto,
   CreateProfileDto,
+  ConnectGoogleAccountDto,
   RefreshTokenDto,
 } from './dto';
 
@@ -41,6 +43,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private safetyService: SafetyService,
   ) {}
 
   // ==================== OTP METHODS ====================
@@ -191,7 +194,7 @@ export class AuthService {
 
   // ==================== FIREBASE AUTH (Google Sign-In) ====================
 
-  async authenticateWithFirebase(idToken: string) {
+  async authenticateWithFirebase(idToken: string, accessToken?: string) {
     try {
       // Decode the Firebase ID token
       // For MVP, we decode the JWT without full verification
@@ -218,6 +221,9 @@ export class AuthService {
 
       const email = payload.email;
       const firebaseUid = payload.user_id || payload.sub;
+      const googleProfile = await this.fetchGoogleProfile(accessToken, payload.name);
+      const googleDisplayName = googleProfile.displayName;
+      const googleGender = googleProfile.gender;
 
       if (!email && !payload.phone_number) {
         throw new BadRequestException('No email or phone in Firebase token');
@@ -242,12 +248,13 @@ export class AuthService {
           phone: payload.phone_number,
           phoneVerified: !!payload.phone_number,
           firebaseUid,
-          name: payload.name || '',
+          name: googleDisplayName || '',
+          googleDisplayName: googleDisplayName || undefined,
+          googleGender: googleGender || undefined,
+          googleAccountLinkedAt: googleDisplayName ? new Date() : undefined,
           dateOfBirth: new Date('1990-01-01'),
           gender: Gender.OTHER,
           intent: UserIntent.LONG_TERM,
-          // Initial safety score: email verified = 10, phone verified = +15
-          safetyScore: (email ? 10 : 0) + (payload.phone_number ? 15 : 0),
         });
         await this.userRepository.save(user);
         console.log('✅ Created new user via Firebase:', user.id);
@@ -266,12 +273,25 @@ export class AuthService {
           // Boost safety score for phone verification
           user.safetyScore = Number(user.safetyScore) + 15;
         }
-        if (payload.name && !user.name) {
-          user.name = payload.name;
+        if (googleDisplayName && !user.name) {
+          user.name = googleDisplayName;
+        }
+        if (googleDisplayName) {
+          user.googleDisplayName = googleDisplayName;
+          user.googleAccountLinkedAt = user.googleAccountLinkedAt || new Date();
+        }
+        if (googleGender) {
+          user.googleGender = googleGender;
         }
         await this.userRepository.save(user);
         console.log('✅ Found existing user via Firebase:', user.id);
       }
+
+      await this.safetyService.updateUserSafetyScore(
+        user.id,
+        'Updated Google account name consistency check',
+        ScoreChangeCategory.PROFILE,
+      );
 
       // Generate app tokens
       const tokens = await this.generateTokens(user);
@@ -290,6 +310,39 @@ export class AuthService {
     }
   }
 
+  async connectGoogleAccount(userId: string, dto: ConnectGoogleAccountDto) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const idTokenPayload = dto.idToken
+      ? this.decodeJwtPayload(dto.idToken)
+      : undefined;
+    const googleProfile = await this.fetchGoogleProfile(
+      dto.accessToken,
+      idTokenPayload?.name,
+    );
+
+    user.googleDisplayName = googleProfile.displayName || user.googleDisplayName;
+    user.googleGender = googleProfile.gender || user.googleGender;
+    user.googleAccountLinkedAt = new Date();
+    await this.userRepository.save(user);
+
+    const safetyScore = await this.safetyService.updateUserSafetyScore(
+      user.id,
+      'Connected Google account for hidden trust signals',
+      ScoreChangeCategory.PROFILE,
+    );
+
+    return {
+      success: true,
+      googleConnected: true,
+      safetyScore,
+      message: 'Google account connected successfully',
+    };
+  }
+
   // Verify phone and boost safety score
   async verifyPhoneAndBoostScore(userId: string, phone: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -299,13 +352,18 @@ export class AuthService {
 
     user.phone = phone;
     user.phoneVerified = true;
-    user.safetyScore = Number(user.safetyScore) + 15;
     await this.userRepository.save(user);
+
+    const safetyScore = await this.safetyService.updateUserSafetyScore(
+      user.id,
+      'Phone verification updated',
+      ScoreChangeCategory.PROFILE,
+    );
 
     return {
       success: true,
-      safetyScore: Number(user.safetyScore),
-      message: 'Phone verified! Your safety score increased by 15 points.',
+      safetyScore,
+      message: 'Phone verification saved successfully.',
     };
   }
 
@@ -523,6 +581,12 @@ export class AuthService {
 
     await this.profileRepository.save(profile);
 
+    await this.safetyService.updateUserSafetyScore(
+      user.id,
+      'Updated onboarding profile details',
+      ScoreChangeCategory.PROFILE,
+    );
+
     return {
       success: true,
       user: this.mapUserToResponse(user),
@@ -618,6 +682,84 @@ export class AuthService {
     return score;
   }
 
+  private normalizeDisplayName(name?: string): string {
+    return (name || '').trim().replace(/\s+/g, ' ');
+  }
+
+  private decodeJwtPayload(token: string): Record<string, any> | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      return JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  private async fetchGoogleProfile(accessToken?: string, fallbackName?: string) {
+    const profile: { displayName?: string; gender?: Gender } = {
+      displayName: this.normalizeDisplayName(fallbackName) || undefined,
+    };
+
+    if (!accessToken) {
+      return profile;
+    }
+
+    try {
+      const response = await fetch(
+        'https://people.googleapis.com/v1/people/me?personFields=names,genders',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`People API request failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as {
+        names?: Array<{ displayName?: string }>;
+        genders?: Array<{ value?: string }>;
+      };
+
+      const apiName = data.names?.find(
+        (entry: { displayName?: string }) =>
+          (entry.displayName || '').trim().length > 0,
+      )?.displayName;
+
+      if ((apiName || '').trim().length > 0) {
+        profile.displayName = this.normalizeDisplayName(apiName);
+      }
+
+      profile.gender = this.mapGoogleGender(
+        data.genders?.find(
+          (entry: { value?: string }) => (entry.value || '').trim().length > 0,
+        )?.value,
+      );
+    } catch (error) {
+      console.warn('⚠️ Google People API lookup failed:', error);
+    }
+
+    return profile;
+  }
+
+  private mapGoogleGender(value?: string): Gender | undefined {
+    switch ((value || '').toLowerCase()) {
+      case 'male':
+        return Gender.MALE;
+      case 'female':
+        return Gender.FEMALE;
+      case 'other':
+      case 'non_binary':
+      case 'non-binary':
+        return Gender.OTHER;
+      default:
+        return undefined;
+    }
+  }
+
   private mapUserToResponse(user: User) {
     return {
       id: user.id,
@@ -635,6 +777,7 @@ export class AuthService {
       isSuspended: user.isSuspended ?? false,
       lastActiveAt: user.lastActiveAt,
       profileComplete: this.isProfileComplete(user),
+      googleConnected: !!user.googleAccountLinkedAt,
       createdAt: user.createdAt,
     };
   }

@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SafetyModule } from '../safety/safety.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -16,6 +17,7 @@ import { RefreshToken } from '../../database/entities/refresh-token.entity';
 
 @Module({
   imports: [
+    SafetyModule,
     TypeOrmModule.forFeature([User, Profile, OtpCode, RefreshToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

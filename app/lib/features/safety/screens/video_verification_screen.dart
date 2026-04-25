@@ -17,10 +17,12 @@ class VideoVerificationScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<VideoVerificationScreen> createState() => _VideoVerificationScreenState();
+  ConsumerState<VideoVerificationScreen> createState() =>
+      _VideoVerificationScreenState();
 }
 
-class _VideoVerificationScreenState extends ConsumerState<VideoVerificationScreen> {
+class _VideoVerificationScreenState
+    extends ConsumerState<VideoVerificationScreen> {
   CameraController? _controller;
   bool _isInitializing = true;
   bool _isRecording = false;
@@ -136,6 +138,7 @@ class _VideoVerificationScreenState extends ConsumerState<VideoVerificationScree
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Video Verification'),
       ),
@@ -149,24 +152,29 @@ class _VideoVerificationScreenState extends ConsumerState<VideoVerificationScree
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHigh
+                    .withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: AppTheme.neonGlow(AppTheme.primaryColor,
+                    blur: 18, opacity: 0.12),
               ),
               child: Column(
                 children: [
-                  const Text(
+                  Text(
                     'Show this number in your video',
-                    style: TextStyle(color: Colors.white70),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Colors.white70,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     widget.code,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
+                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                          color: Colors.white,
+                          letterSpacing: 2,
+                        ),
                   ),
                 ],
               ),
@@ -175,13 +183,20 @@ class _VideoVerificationScreenState extends ConsumerState<VideoVerificationScree
           if (_isUploading)
             Container(
               color: Colors.black54,
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 12),
-                    Text('Uploading...', style: TextStyle(color: Colors.white)),
+                    const CircularProgressIndicator(color: Colors.white),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Uploading...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily:
+                            Theme.of(context).textTheme.bodyMedium?.fontFamily,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -196,8 +211,12 @@ class _VideoVerificationScreenState extends ConsumerState<VideoVerificationScree
             icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
             label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _isRecording ? AppTheme.error : Theme.of(context).primaryColor,
+              backgroundColor: _isRecording
+                  ? AppTheme.error
+                  : Theme.of(context).primaryColor,
               padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4)),
             ),
           ),
         ),

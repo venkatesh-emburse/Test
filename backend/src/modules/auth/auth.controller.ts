@@ -24,6 +24,8 @@ import {
   SetIntentDto,
   CreateProfileDto,
   RefreshTokenDto,
+  VerifyFirebaseDto,
+  ConnectGoogleAccountDto,
   OtpSentResponseDto,
   AuthTokensResponseDto,
 } from './dto';
@@ -112,8 +114,20 @@ export class AuthController {
     type: AuthTokensResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid Firebase token' })
-  async verifyFirebaseToken(@Body() dto: { idToken: string }) {
-    return this.authService.authenticateWithFirebase(dto.idToken);
+  async verifyFirebaseToken(@Body() dto: VerifyFirebaseDto) {
+    return this.authService.authenticateWithFirebase(dto.idToken, dto.accessToken);
+  }
+
+  @Post('google/connect')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Connect a Google account for hidden trust boosts' })
+  @ApiResponse({ status: 200, description: 'Google account linked successfully' })
+  async connectGoogleAccount(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ConnectGoogleAccountDto,
+  ) {
+    return this.authService.connectGoogleAccount(userId, dto);
   }
 
   // ==================== TOKEN ENDPOINTS ====================

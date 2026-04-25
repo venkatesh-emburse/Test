@@ -6,8 +6,8 @@ import 'core/providers/router_provider.dart';
 import 'core/services/notification_service.dart';
 import 'core/utils/app_theme.dart';
 
-/// Theme mode provider — toggles between light, dark, system.
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+/// Theme mode provider — defaults to the neon dark system.
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 
 /// Top-level handler for background/terminated FCM messages.
 @pragma('vm:entry-point')

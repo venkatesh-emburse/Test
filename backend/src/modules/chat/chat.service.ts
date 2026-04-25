@@ -188,6 +188,7 @@ export class ChatService {
           name: otherUser.name,
           photos: otherUser.profile?.photos,
           isVerified: otherUser.isVerified,
+          lastActiveAt: otherUser.lastActiveAt,
         },
         lastMessage: lastMessage
           ? {

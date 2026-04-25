@@ -42,10 +42,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String _intent = '';
   String _originalIntent = '';
 
-  // Section 4: Privacy
-  bool _showOnMap = false;
-  bool _isInvisible = false;
-
   @override
   void initState() {
     super.initState();
@@ -82,8 +78,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _selectedInterests = List<String>.from(user.profile?.interests ?? []);
     _intent = user.intent;
     _originalIntent = user.intent;
-    _showOnMap = user.showOnMap;
-    _isInvisible = user.isInvisible;
   }
 
   // ── Save actions ──
@@ -136,22 +130,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
-  Future<void> _updatePrivacy() async {
-    try {
-      await ref.read(dioProvider).put('/profile/privacy', data: {
-        'showOnMap': _showOnMap,
-        'isInvisible': _isInvisible,
-      });
-    } catch (e) {
-      debugPrint('Privacy update error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update privacy: $e')),
-        );
-      }
-    }
-  }
-
   // ══════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════
@@ -161,14 +139,40 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final userAsync = ref.watch(currentUserProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
-      body: userAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error loading profile: $e')),
-        data: (user) {
-          _initializeFromUser(user);
-          return _buildForm(context);
-        },
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('PROFILE EDITOR',
+                style: Theme.of(context).textTheme.labelSmall),
+            Text('Edit Profile',
+                style: Theme.of(context).textTheme.headlineMedium),
+          ],
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.surface,
+              Theme.of(context).colorScheme.surfaceContainerLow,
+              Theme.of(context).colorScheme.surface,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: userAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error loading profile: $e')),
+            data: (user) {
+              _initializeFromUser(user);
+              return _buildForm(context);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -177,7 +181,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     return Stack(
       children: [
         SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -215,12 +219,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 _buildIntentSection(),
                 const SizedBox(height: 32),
 
-                // ── Section 4: Privacy & Visibility ──
-                _sectionHeader('Privacy & Visibility'),
-                const SizedBox(height: 12),
-                _buildPrivacySection(),
-                const SizedBox(height: 32),
-
                 // ── Save Button ──
                 SizedBox(
                   width: double.infinity,
@@ -240,7 +238,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           )
                         : const Text(
                             'Save Changes',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                   ),
                 ),
@@ -266,7 +264,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget _sectionHeader(String title) {
     return Text(
       title,
-      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      style: Theme.of(context).textTheme.headlineMedium,
     );
   }
 
@@ -297,16 +295,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHigh
+              .withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           _dateOfBirth != null
               ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
               : 'Not set',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
         ),
       ),
     );
@@ -366,21 +367,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       label: 'Height',
       child: InkWell(
         onTap: _showHeightPicker,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(4),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).dividerColor),
-            borderRadius: BorderRadius.circular(12),
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHigh
+                .withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
             _height != null ? '$_height cm' : 'Select height',
-            style: TextStyle(
-              color: _height != null
-                  ? null
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _height != null
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
         ),
       ),
@@ -409,10 +413,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         ),
                         Text(
                           '$tempHeight cm',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
                         TextButton(
                           onPressed: () {
@@ -442,14 +443,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           return Center(
                             child: Text(
                               '$h cm',
-                              style: TextStyle(
-                                fontSize: isSelected ? 20 : 16,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
+                              style: (isSelected
+                                      ? Theme.of(context).textTheme.titleLarge
+                                      : Theme.of(context).textTheme.bodyLarge)
+                                  ?.copyWith(
                                 color: isSelected
                                     ? Theme.of(context).primaryColor
-                                    : null,
+                                    : Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                           );
@@ -472,8 +472,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       child: TextFormField(
         controller: _occupationController,
         maxLength: 100,
-        decoration:
-            const InputDecoration(hintText: 'e.g. Software Engineer'),
+        decoration: const InputDecoration(hintText: 'e.g. Software Engineer'),
       ),
     );
   }
@@ -519,8 +518,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           suggestionsAsync.when(
             loading: () => const SizedBox(
               height: 32,
-              child:
-                  Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
             error: (_, __) => const Text('Could not load suggestions'),
             data: (suggestions) {
@@ -605,8 +603,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     if (_selectedInterests.length >= 10) return;
 
     // Avoid duplicates (case-insensitive)
-    final alreadyExists = _selectedInterests
-        .any((i) => i.toLowerCase() == trimmed.toLowerCase());
+    final alreadyExists =
+        _selectedInterests.any((i) => i.toLowerCase() == trimmed.toLowerCase());
     if (alreadyExists) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('This interest is already added')),
@@ -649,7 +647,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppTheme.warning.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -660,11 +658,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   Expanded(
                     child: Text(
                       'Changing your intent frequently will reduce 1 point from your trust score each day.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                   ),
                 ],
@@ -680,23 +677,20 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: InkWell(
                   onTap: () => setState(() => _intent = intent),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(4),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected
-                            ? Theme.of(context).primaryColor
-                            : Theme.of(context).dividerColor,
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(4),
                       color: isSelected
                           ? Theme.of(context)
                               .primaryColor
                               .withValues(alpha: 0.1)
-                          : null,
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHigh
+                              .withValues(alpha: 0.74),
                     ),
                     child: Row(
                       children: [
@@ -705,21 +699,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           size: 20,
                           color: isSelected
                               ? Theme.of(context).primaryColor
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 12),
                         Text(
                           intentLabels[intent] ?? intent,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : null,
-                            color: isSelected
-                                ? Theme.of(context).primaryColor
-                                : null,
-                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isSelected
+                                    ? Theme.of(context).primaryColor
+                                    : Theme.of(context).colorScheme.onSurface,
+                              ),
                         ),
                         const Spacer(),
                         if (isSelected)
@@ -744,70 +739,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   //  SECTION 4: PRIVACY & VISIBILITY
   // ══════════════════════════════════════════════
 
-  Widget _buildPrivacySection() {
-    return Card(
-      child: Column(
-        children: [
-          SwitchListTile(
-            title: const Text('Show on Map'),
-            subtitle: const Text('Let others see you on the map radar'),
-            secondary: const Icon(Icons.map_outlined),
-            value: _showOnMap,
-            onChanged: (value) {
-              setState(() => _showOnMap = value);
-              _updatePrivacy();
-            },
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          SwitchListTile(
-            title: const Text('Invisible Mode'),
-            subtitle: const Text('Hide your profile from discovery'),
-            secondary: const Icon(Icons.visibility_off_outlined),
-            value: _isInvisible,
-            onChanged: (value) {
-              if (value) {
-                // Show warning when turning ON
-                _showInvisibleModeWarning();
-              } else {
-                setState(() => _isInvisible = false);
-                _updatePrivacy();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInvisibleModeWarning() {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          icon: const Icon(Icons.visibility_off, size: 40, color: AppTheme.warning),
-          title: const Text('Enable Invisible Mode?'),
-          content: const Text(
-            'Others won\'t be able to see your profile through discovery and you might not get likes as well.\n\nYou can turn this off anytime.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                setState(() => _isInvisible = true);
-                _updatePrivacy();
-              },
-              child: const Text('Enable'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   // ══════════════════════════════════════════════
   //  HELPERS
   // ══════════════════════════════════════════════
@@ -823,7 +754,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       children: [
         Row(
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+            Text(label, style: Theme.of(context).textTheme.titleMedium),
             if (locked) ...[
               const SizedBox(width: 6),
               Icon(

@@ -61,7 +61,8 @@ class User {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
-      profile: json['profile'] != null ? Profile.fromJson(json['profile']) : null,
+      profile:
+          json['profile'] != null ? Profile.fromJson(json['profile']) : null,
     );
   }
 
@@ -141,7 +142,14 @@ class Match {
   factory Match.fromJson(Map<String, dynamic> json) {
     // Handle both 'id' and 'matchId' (conversation endpoint uses matchId)
     final matchId = json['matchId'] ?? json['id'];
-    
+    final otherUserJson = Map<String, dynamic>.from(json['otherUser'] ?? {});
+
+    if (otherUserJson['profile'] == null && otherUserJson['photos'] != null) {
+      otherUserJson['profile'] = {
+        'photos': otherUserJson['photos'],
+      };
+    }
+
     // Handle lastMessage as object or string
     String? lastMessageContent;
     DateTime? lastMessageTime;
@@ -156,12 +164,12 @@ class Match {
           ? DateTime.parse(json['lastMessageAt'])
           : null;
     }
-    
+
     return Match(
       id: matchId,
-      otherUser: User.fromJson(json['otherUser']),
-      matchedAt: json['matchedAt'] != null 
-          ? DateTime.parse(json['matchedAt']) 
+      otherUser: User.fromJson(otherUserJson),
+      matchedAt: json['matchedAt'] != null
+          ? DateTime.parse(json['matchedAt'])
           : DateTime.now(),
       microDateGame: json['microDateGame'],
       chatUnlocked: json['chatUnlocked'] ?? false,
@@ -274,10 +282,60 @@ class DiscoveryProfile {
   String? get memberSince {
     if (createdAt == null) return null;
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[createdAt!.month - 1]} ${createdAt!.year}';
+  }
+}
+
+class ReceivedLike {
+  final String userId;
+  final String name;
+  final int age;
+  final String intent;
+  final String? bio;
+  final List<String> photos;
+  final double safetyScore;
+  final bool isVerified;
+  final DateTime likedAt;
+
+  ReceivedLike({
+    required this.userId,
+    required this.name,
+    required this.age,
+    required this.intent,
+    this.bio,
+    this.photos = const [],
+    required this.safetyScore,
+    required this.isVerified,
+    required this.likedAt,
+  });
+
+  factory ReceivedLike.fromJson(Map<String, dynamic> json) {
+    return ReceivedLike(
+      userId: json['userId'] ?? '',
+      name: json['name'] ?? 'Someone',
+      age: json['age'] ?? 0,
+      intent: json['intent'] ?? '',
+      bio: json['bio'],
+      photos: List<String>.from(json['photos'] ?? []),
+      safetyScore: (json['safetyScore'] ?? 0).toDouble(),
+      isVerified: json['isVerified'] ?? false,
+      likedAt: json['likedAt'] != null
+          ? DateTime.parse(json['likedAt'])
+          : DateTime.now(),
+    );
   }
 }
 
@@ -315,7 +373,8 @@ class SafetyScoreLog {
   final double newScore;
   final double changeAmount;
   final String reason;
-  final String category; // verification, profile, behavioral, activity, report_penalty, admin_action
+  final String
+      category; // verification, profile, behavioral, activity, report_penalty, admin_action
   final DateTime createdAt;
 
   SafetyScoreLog({
@@ -345,4 +404,3 @@ class SafetyScoreLog {
   bool get isPositive => changeAmount > 0;
   bool get isNegative => changeAmount < 0;
 }
-

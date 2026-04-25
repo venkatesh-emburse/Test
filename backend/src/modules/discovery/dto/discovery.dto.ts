@@ -1,5 +1,5 @@
 import {
-  IsEnum,
+  IsIn,
   IsOptional,
   IsNumber,
   Min,
@@ -60,8 +60,8 @@ export class SwipeDto {
   @IsString()
   targetUserId: string;
 
-  @ApiProperty({ enum: SwipeAction, example: SwipeAction.LIKE })
-  @IsEnum(SwipeAction)
+  @ApiProperty({ enum: [SwipeAction.LIKE, SwipeAction.PASS], example: SwipeAction.LIKE })
+  @IsIn([SwipeAction.LIKE, SwipeAction.PASS])
   action: SwipeAction;
 }
 
@@ -155,4 +155,33 @@ export class MatchDto {
     safetyScore: number;
     isVerified: boolean;
   };
+}
+
+export class LikeDto {
+  @ApiProperty()
+  userId: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  age: number;
+
+  @ApiProperty()
+  intent: string;
+
+  @ApiPropertyOptional()
+  bio?: string;
+
+  @ApiProperty({ type: [String] })
+  photos: string[];
+
+  @ApiProperty()
+  safetyScore: number;
+
+  @ApiProperty()
+  isVerified: boolean;
+
+  @ApiProperty()
+  likedAt: Date;
 }

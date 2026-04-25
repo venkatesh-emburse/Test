@@ -1,8 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/utils/app_theme.dart';
 import '../../../core/models/models.dart';
@@ -16,9 +18,31 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  final MapController _mapController = MapController();
+  static const String _minimalMapStyle = '''
+[
+  {
+    "featureType": "poi",
+    "stylers": [{"visibility": "off"}]
+  },
+  {
+    "featureType": "poi.business",
+    "stylers": [{"visibility": "off"}]
+  },
+  {
+    "featureType": "transit.station",
+    "stylers": [{"visibility": "off"}]
+  }
+]
+''';
+  static const double _markerCanvasSize = 72.0;
+  static const double _nearbyAvatarRadius = 18.0;
+  static const double _currentUserAvatarRadius = 16.0;
+
+  GoogleMapController? _mapController;
   LatLng? _currentLocation;
   List<NearbyUser> _nearbyUsers = [];
+  final Map<String, BitmapDescriptor> _userMarkerIcons = {};
+  BitmapDescriptor? _currentUserMarkerIcon;
   bool _isLoading = true;
   String? _errorMessage;
   bool _isSatelliteView = false;
@@ -45,7 +69,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         setState(() {
-          _errorMessage = 'Location services are disabled.\nPlease enable location in your device settings.';
+          _errorMessage =
+              'Location services are disabled.\nPlease enable location in your device settings.';
           _isLoading = false;
         });
         return;
@@ -53,12 +78,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
       // Check and request permission
       LocationPermission permission = await Geolocator.checkPermission();
-      
+
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           setState(() {
-            _errorMessage = 'Location permission denied.\nPlease grant location access to see nearby users.';
+            _errorMessage =
+                'Location permission denied.\nPlease grant location access to see nearby users.';
             _isLoading = false;
           });
           return;
@@ -67,7 +93,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
       if (permission == LocationPermission.deniedForever) {
         setState(() {
-          _errorMessage = 'Location permission permanently denied.\nPlease enable it in app settings.';
+          _errorMessage =
+              'Location permission permanently denied.\nPlease enable it in app settings.';
           _isLoading = false;
         });
         return;
@@ -78,13 +105,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 15),
       );
-      
-      debugPrint('Location detected: ${position.latitude}, ${position.longitude}');
-      
+
+      debugPrint(
+          'Location detected: ${position.latitude}, ${position.longitude}');
+
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
       });
-      
+
       _loadNearbyUsers();
     } catch (e) {
       debugPrint('Location error: $e');
@@ -114,6 +142,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             .toList();
         _isLoading = false;
       });
+      await _loadUserMarkerIcons();
     } catch (e) {
       debugPrint('Nearby users error: $e');
       setState(() => _isLoading = false);
@@ -159,7 +188,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.location_off, size: 64, color: Theme.of(context).colorScheme.outline),
+              Icon(Icons.location_off,
+                  size: 64, color: Theme.of(context).colorScheme.outline),
               const SizedBox(height: 16),
               Text(
                 _errorMessage!,
@@ -190,102 +220,35 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _currentLocation!,
-            initialZoom: _defaultZoom,
-            minZoom: _minZoomLevel,
-            maxZoom: _maxZoomLevel,
-            onPositionChanged: (position, hasGesture) {
-              if (position.zoom != null) {
-                _currentZoom = position.zoom!;
-              }
-            },
+        GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: _currentLocation!,
+            zoom: _defaultZoom,
           ),
-          children: [
-            // Tile layer — satellite or standard
-            TileLayer(
-              urlTemplate: _isSatelliteView
-                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.liveconnect.app',
-              maxZoom: 19,
+          style: _minimalMapStyle,
+          onMapCreated: (controller) => _mapController = controller,
+          mapType: _isSatelliteView ? MapType.satellite : MapType.normal,
+          minMaxZoomPreference:
+              const MinMaxZoomPreference(_minZoomLevel, _maxZoomLevel),
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          compassEnabled: true,
+          circles: {
+            Circle(
+              circleId: const CircleId('search-radius'),
+              center: _currentLocation!,
+              radius: _maxRadiusMeters,
+              fillColor: Theme.of(context).primaryColor.withValues(alpha: 0.08),
+              strokeWidth: 2,
+              strokeColor:
+                  Theme.of(context).primaryColor.withValues(alpha: 0.5),
             ),
-            // Radius circle
-            CircleLayer(
-              circles: [
-                CircleMarker(
-                  point: _currentLocation!,
-                  radius: _maxRadiusMeters,
-                  useRadiusInMeter: true,
-                  color: Theme.of(context).primaryColor.withValues(alpha: 0.08),
-                  borderStrokeWidth: 1.5,
-                  borderColor: Theme.of(context).primaryColor.withValues(alpha: 0.5),
-                ),
-              ],
-            ),
-            // Markers
-            MarkerLayer(
-              markers: [
-                // Current user marker
-                Marker(
-                  point: _currentLocation!,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Theme.of(context).primaryColor.withValues(alpha: 0.4),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                // Nearby users
-                ..._nearbyUsers.map((user) => Marker(
-                      point: LatLng(
-                        user.approximateLatitude,
-                        user.approximateLongitude,
-                      ),
-                      child: GestureDetector(
-                        onTap: () => _showUserPreview(user),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: user.isVerified
-                                ? AppTheme.safetyHigh
-                                : Theme.of(context).colorScheme.outline,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 12,
-                            backgroundImage: user.photos.isNotEmpty
-                                ? NetworkImage(user.photos.first)
-                                : null,
-                            child: user.photos.isEmpty
-                                ? const Icon(Icons.person, size: 12, color: Colors.white)
-                                : null,
-                          ),
-                        ),
-                      ),
-                    )),
-              ],
-            ),
-          ],
+          },
+          markers: _buildMarkers(context),
+          onCameraMove: (position) {
+            _currentZoom = position.zoom;
+          },
         ),
 
         // Top left — user count badge
@@ -307,7 +270,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.people, size: 18, color: Theme.of(context).primaryColor),
+                Icon(Icons.people,
+                    size: 18, color: Theme.of(context).primaryColor),
                 const SizedBox(width: 6),
                 Text(
                   '${_nearbyUsers.length} nearby',
@@ -357,8 +321,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               _buildMapButton(
                 icon: Icons.add,
                 onPressed: () {
-                  final newZoom = (_currentZoom + 1).clamp(_minZoomLevel, _maxZoomLevel);
-                  _mapController.move(_mapController.camera.center, newZoom);
+                  final newZoom =
+                      (_currentZoom + 1).clamp(_minZoomLevel, _maxZoomLevel);
+                  _mapController?.animateCamera(CameraUpdate.zoomTo(newZoom));
                   _currentZoom = newZoom;
                 },
               ),
@@ -367,8 +332,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               _buildMapButton(
                 icon: Icons.remove,
                 onPressed: () {
-                  final newZoom = (_currentZoom - 1).clamp(_minZoomLevel, _maxZoomLevel);
-                  _mapController.move(_mapController.camera.center, newZoom);
+                  final newZoom =
+                      (_currentZoom - 1).clamp(_minZoomLevel, _maxZoomLevel);
+                  _mapController?.animateCamera(CameraUpdate.zoomTo(newZoom));
                   _currentZoom = newZoom;
                 },
               ),
@@ -378,7 +344,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 heroTag: 'myLocation',
                 onPressed: () {
                   if (_currentLocation != null) {
-                    _mapController.move(_currentLocation!, _defaultZoom);
+                    _mapController?.animateCamera(
+                      CameraUpdate.newLatLngZoom(
+                          _currentLocation!, _defaultZoom),
+                    );
                     _currentZoom = _defaultZoom;
                   }
                 },
@@ -391,7 +360,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildMapButton({required IconData icon, required VoidCallback onPressed}) {
+  Widget _buildMapButton(
+      {required IconData icon, required VoidCallback onPressed}) {
     return Container(
       width: 44,
       height: 44,
@@ -414,6 +384,226 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
+  Set<Marker> _buildMarkers(BuildContext context) {
+    final markers = _nearbyUsers
+        .where(
+          (user) =>
+              user.approximateLatitude != 0 || user.approximateLongitude != 0,
+        )
+        .map(
+          (user) => Marker(
+            markerId: MarkerId('nearby-${user.id}'),
+            position: LatLng(
+              user.approximateLatitude,
+              user.approximateLongitude,
+            ),
+            infoWindow: InfoWindow(
+              title: user.displayName,
+              snippet: '${user.distanceKm.toStringAsFixed(1)} km away',
+              onTap: () => _showUserPreview(user),
+            ),
+            icon: _userMarkerIcons[user.id] ?? BitmapDescriptor.defaultMarker,
+            onTap: () => _showUserPreview(user),
+          ),
+        )
+        .toSet();
+
+    if (_currentLocation != null && _currentUserMarkerIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current-user'),
+          position: _currentLocation!,
+          anchor: const Offset(0.5, 0.5),
+          icon: _currentUserMarkerIcon!,
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Future<void> _loadUserMarkerIcons() async {
+    final usersToLoad = _nearbyUsers.where(
+      (user) => !_userMarkerIcons.containsKey(user.id),
+    );
+
+    await Future.wait(usersToLoad.map((user) async {
+      final icon = await _createUserMarkerIcon(user);
+      if (icon != null) {
+        _userMarkerIcons[user.id] = icon;
+      }
+    }));
+
+    _currentUserMarkerIcon ??= await _createCurrentUserMarkerIcon();
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<BitmapDescriptor?> _createUserMarkerIcon(NearbyUser user) async {
+    try {
+      if (user.photos.isEmpty) {
+        return _createPlaceholderMarkerIcon(user);
+      }
+
+      final imageBytes = await NetworkAssetBundle(Uri.parse(user.photos.first))
+          .load(user.photos.first);
+      final codec = await ui.instantiateImageCodec(
+        imageBytes.buffer.asUint8List(),
+        targetWidth: _markerCanvasSize.toInt(),
+        targetHeight: _markerCanvasSize.toInt(),
+      );
+      final frame = await codec.getNextFrame();
+
+      const size = _markerCanvasSize;
+      const avatarRadius = _nearbyAvatarRadius;
+      const center = Offset(size / 2, size / 2 - 10);
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final fillPaint = Paint()..color = Colors.white;
+      final ringPaint = Paint()
+        ..color =
+            user.isVerified ? AppTheme.primaryColor : AppTheme.secondaryColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4;
+
+      canvas.drawCircle(center, avatarRadius + 6, fillPaint);
+      canvas.drawCircle(center, avatarRadius + 6, ringPaint);
+
+      final clipPath = Path()
+        ..addOval(Rect.fromCircle(center: center, radius: avatarRadius));
+      canvas.save();
+      canvas.clipPath(clipPath);
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromCircle(center: center, radius: avatarRadius),
+        image: frame.image,
+        fit: BoxFit.cover,
+      );
+      canvas.restore();
+
+      final dotPaint = Paint()
+        ..color =
+            user.isVerified ? AppTheme.primaryColor : AppTheme.secondaryColor;
+      canvas.drawCircle(const Offset(size / 2, size - 12), 4.5, dotPaint);
+
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+
+      final bytes = byteData.buffer.asUint8List();
+      return BitmapDescriptor.bytes(bytes);
+    } catch (e) {
+      debugPrint('Marker icon error for ${user.id}: $e');
+      return _createPlaceholderMarkerIcon(user);
+    }
+  }
+
+  Future<BitmapDescriptor?> _createPlaceholderMarkerIcon(
+      NearbyUser user) async {
+    try {
+      const size = _markerCanvasSize;
+      const avatarRadius = _nearbyAvatarRadius;
+      const center = Offset(size / 2, size / 2 - 10);
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final fillPaint = Paint()
+        ..color =
+            user.isVerified ? AppTheme.primaryColor : AppTheme.secondaryColor;
+
+      canvas.drawCircle(center, avatarRadius + 6, fillPaint);
+
+      final iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(Icons.person.codePoint),
+          style: TextStyle(
+            fontSize: 18,
+            fontFamily: Icons.person.fontFamily,
+            package: Icons.person.fontPackage,
+            color: const Color(0xFF08333A),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      iconPainter.paint(
+        canvas,
+        Offset(center.dx - iconPainter.width / 2,
+            center.dy - iconPainter.height / 2),
+      );
+
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+
+      return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('Placeholder marker error for ${user.id}: $e');
+      return null;
+    }
+  }
+
+  Future<BitmapDescriptor?> _createCurrentUserMarkerIcon() async {
+    try {
+      const size = _markerCanvasSize;
+      const avatarRadius = _currentUserAvatarRadius;
+      const center = Offset(size / 2, size / 2);
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final fillPaint = Paint()..color = AppTheme.primaryColor;
+      final ringPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+
+      canvas.drawCircle(center, avatarRadius + 3, fillPaint);
+      canvas.drawCircle(center, avatarRadius + 3, ringPaint);
+
+      final iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(Icons.person.codePoint),
+          style: TextStyle(
+            fontSize: 16,
+            fontFamily: Icons.person.fontFamily,
+            package: Icons.person.fontPackage,
+            color: const Color(0xFF08333A),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      iconPainter.paint(
+        canvas,
+        Offset(
+          center.dx - iconPainter.width / 2,
+          center.dy - iconPainter.height / 2,
+        ),
+      );
+
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return null;
+
+      return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('Current user marker error: $e');
+      return null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
   void _showUserPreview(NearbyUser user) {
     showModalBottomSheet(
       context: context,
@@ -432,9 +622,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   backgroundImage: user.photos.isNotEmpty
                       ? NetworkImage(user.photos.first)
                       : null,
-                  child: user.photos.isEmpty
-                      ? const Icon(Icons.person)
-                      : null,
+                  child: user.photos.isEmpty ? const Icon(Icons.person) : null,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -463,7 +651,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       ),
                       Text(
                         '${user.distanceKm.toStringAsFixed(1)} km away',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -474,7 +664,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _getSafetyColor(user.safetyScore).withOpacity(0.1),
+                    color: _getSafetyColor(user.safetyScore)
+                        .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -518,11 +709,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     bio: user.bio,
                     interests: user.interests,
                   );
-                  
+
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ProfileDetailsScreen(profile: profile),
+                      builder: (context) =>
+                          ProfileDetailsScreen(profile: profile),
                     ),
                   );
                 },

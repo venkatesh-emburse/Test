@@ -44,7 +44,7 @@ export class DiscoveryController {
 
   @Post('swipe')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Swipe on a profile (like, pass, or super_like)' })
+  @ApiOperation({ summary: 'Swipe on a profile (like or pass)' })
   @ApiResponse({ status: 200, description: 'Swipe recorded, returns isMatch' })
   @ApiResponse({ status: 400, description: 'Already swiped or invalid' })
   @ApiResponse({
@@ -53,6 +53,13 @@ export class DiscoveryController {
   })
   async swipe(@CurrentUser('id') userId: string, @Body() dto: SwipeDto) {
     return this.discoveryService.swipe(userId, dto);
+  }
+
+  @Get('likes')
+  @ApiOperation({ summary: 'Get pending likes received by the current user' })
+  @ApiResponse({ status: 200, description: 'List of users who liked you' })
+  async getReceivedLikes(@CurrentUser('id') userId: string) {
+    return this.discoveryService.getReceivedLikes(userId);
   }
 
   // ==================== MATCHES ====================

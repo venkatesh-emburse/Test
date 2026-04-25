@@ -94,6 +94,7 @@ export class ConversationDto {
     name: string;
     photos?: string[];
     isVerified: boolean;
+    lastActiveAt?: Date;
   };
 
   @ApiPropertyOptional()

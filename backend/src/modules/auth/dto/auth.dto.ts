@@ -123,6 +123,30 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
+export class VerifyFirebaseDto {
+  @ApiProperty({ description: 'Firebase ID token' })
+  @IsString()
+  @IsNotEmpty()
+  idToken: string;
+
+  @ApiPropertyOptional({ description: 'Google OAuth access token with People API scopes' })
+  @IsString()
+  @IsOptional()
+  accessToken?: string;
+}
+
+export class ConnectGoogleAccountDto {
+  @ApiProperty({ description: 'Google OAuth access token with People API scopes' })
+  @IsString()
+  @IsNotEmpty()
+  accessToken: string;
+
+  @ApiPropertyOptional({ description: 'Google ID token for basic identity details' })
+  @IsString()
+  @IsOptional()
+  idToken?: string;
+}
+
 // Response DTOs
 export class OtpSentResponseDto {
   @ApiProperty({ example: true })
@@ -163,6 +187,9 @@ export class UserResponseDto {
 
   @ApiProperty()
   profileComplete: boolean;
+
+  @ApiProperty()
+  googleConnected: boolean;
 
   @ApiProperty()
   createdAt: Date;

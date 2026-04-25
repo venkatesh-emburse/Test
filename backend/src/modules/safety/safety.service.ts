@@ -4,8 +4,9 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, Not } from 'typeorm';
+import { Repository, MoreThan, Not, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
 import { User } from '../../database/entities/user.entity';
@@ -19,6 +20,7 @@ import {
   VerificationStatus,
   VerificationType,
   ReportReason,
+  Gender,
   ScoreChangeCategory,
 } from '../../database/entities/enums';
 import {
@@ -313,12 +315,12 @@ export class SafetyService {
       breakdown: {
         selfieVerification: breakdown.selfieVerification,
         profileQuality: breakdown.profileQuality,
-        identityVerification: breakdown.identityVerification,
         accountAge: breakdown.accountAge,
         behavioralScore: breakdown.behavioralScore,
         activityBonus: breakdown.activityBonus,
-        reportPenalty: breakdown.reportPenalty,
       },
+      googleConnected: breakdown.googleConnected,
+      canIncreaseWithGoogle: !breakdown.googleConnected,
       isVerified: user.isVerified,
       lastUpdated: new Date(),
     };
@@ -400,143 +402,124 @@ export class SafetyService {
   }
 
   private async calculateSafetyScoreBreakdown(user: User) {
-    // 1. Selfie/Video Verification (0-30 points) — was 35
+    // 1. Selfie Verification (0-30 points)
     const verification = await this.verificationRepository.findOne({
       where: {
         userId: user.id,
         verificationStatus: VerificationStatus.VERIFIED,
       },
-      order: { createdAt: 'DESC' },
+        order: { createdAt: 'DESC' },
     });
-    const selfieVerification = verification ? 30 : 0;
-
-    // 2. Profile Quality (0-25 points) — was 30, now more granular
-    const profileQuality = this.calculateProfileQuality(user.profile);
-
-    // 3. Identity Verification (0-15 points)
-    const identityVerification = this.calculateIdentityVerification(user);
-
-    // 4. Account Age (0-10 points)
-    const accountAgeDays = Math.floor(
-      (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
-    );
-    const accountAge = Math.min(10, Math.round(accountAgeDays / 14));
-
-    // 5. Behavioral Score (0-15 points) — NEW
-    const behavioralScore = await this.calculateBehavioralScore(user);
-
-    // 6. Activity Bonus (0-5 points) — NEW
-    const activityBonus = this.calculateActivityBonus(user);
-
-    // 7. Report Penalty (-30 to 0 points)
-    const reportsCount = await this.reportRepository.count({
+    const severePenaltyCount = await this.reportRepository.count({
       where: {
         reportedId: user.id,
         isReviewed: true,
         actionTaken: Not(''),
+        reason: In([
+          ReportReason.FAKE_PROFILE,
+          ReportReason.SCAM,
+          ReportReason.IMPERSONATION,
+        ]),
       },
     });
-    const swipeWarningPenalty = Math.min(15, (user.swipeWarningCount || 0) * 5);
-    const reportPenalty = Math.max(-30, -reportsCount * 10 - swipeWarningPenalty);
+    const selfieVerification = Math.max(0, (verification ? 30 : 0) - severePenaltyCount * 5);
+
+    // 2. Profile Quality (0-20 points)
+    const profileQuality = this.calculateProfileQuality(user.profile);
+
+    // 3. Account Age (0-10 points)
+    const storedAccountAge = Number(user.accountAgeScore || 0);
+    const accountAge = Math.max(
+      0,
+      Math.min(10, storedAccountAge > 0 ? storedAccountAge : this.calculateAccountAgeScore(user.createdAt)),
+    );
+
+    // 4. Hidden Google trust checks (0-20 points)
+    const googleNameMatch = this.calculateNameConsistency(user).score;
+    const googleGenderMatch = this.calculateGoogleGenderMatch(user);
+    const googleConnected = !!user.googleAccountLinkedAt;
+
+    // 5. Behavioral Score (0-15 points)
+    const behavioralScore = await this.calculateBehavioralScore(user);
+
+    // 6. Activity Bonus (0-5 points)
+    const activityBonus = this.calculateActivityBonus(user);
 
     const total =
       selfieVerification +
       profileQuality +
-      identityVerification +
       accountAge +
+      googleNameMatch +
+      googleGenderMatch +
       behavioralScore +
-      activityBonus +
-      reportPenalty;
+      activityBonus;
 
     return {
       selfieVerification,
       profileQuality,
-      identityVerification,
       accountAge,
       behavioralScore,
       activityBonus,
-      reportPenalty,
+      googleConnected,
       total: Math.max(0, Math.min(100, total)),
     };
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async refreshAccountAgeScoresDaily() {
+    const users = await this.userRepository.find();
+
+    for (const user of users) {
+      const nextScore = this.calculateAccountAgeScore(user.createdAt);
+      if (Math.abs(Number(user.accountAgeScore) - nextScore) < 0.01) {
+        continue;
+      }
+
+      await this.userRepository.update(user.id, { accountAgeScore: nextScore });
+      await this.updateUserSafetyScore(
+        user.id,
+        'Daily account age score refresh',
+        ScoreChangeCategory.ACTIVITY,
+      );
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async recoverBehaviorScoresDaily() {
+    const users = await this.userRepository.find();
+    const now = new Date();
+
+    for (const user of users) {
+      const currentScore = Number(user.behavioralScoreValue || 15);
+      if (currentScore >= 15) {
+        continue;
+      }
+
+      const cleanSince = user.lastMisbehaviorAt
+        ? Math.floor((now.getTime() - new Date(user.lastMisbehaviorAt).getTime()) / (1000 * 60 * 60 * 24))
+        : 999;
+      const lastRecoveryDay = user.lastBehaviorRecoveryAt?.toDateString();
+
+      if (cleanSince < 14 || lastRecoveryDay == now.toDateString()) {
+        continue;
+      }
+
+      user.behavioralScoreValue = Math.min(15, currentScore + 3);
+      user.lastBehaviorRecoveryAt = now;
+      await this.userRepository.save(user);
+
+      await this.updateUserSafetyScore(
+        user.id,
+        'Recovered behavioral score after 14 clean days',
+        ScoreChangeCategory.BEHAVIORAL,
+      );
+    }
   }
 
   // ==================== BEHAVIORAL SCORE ====================
 
   private async calculateBehavioralScore(user: User): Promise<number> {
-    const totalMatches = await this.matchRepository.count({
-      where: [
-        { user1Id: user.id },
-        { user2Id: user.id },
-      ],
-    });
-
-    // New users with <5 matches get a default of 8/15
-    if (totalMatches < 5) return 8;
-
-    let score = 0;
-
-    // A. Response Rate (0-6 pts)
-    const matchesWithMessages = await this.matchRepository
-      .createQueryBuilder('match')
-      .where('(match.user1Id = :userId OR match.user2Id = :userId)', { userId: user.id })
-      .andWhere((qb) => {
-        const subQuery = qb
-          .subQuery()
-          .select('1')
-          .from(Message, 'msg')
-          .where('msg.matchId = match.id')
-          .andWhere('msg.senderId = :senderId', { senderId: user.id })
-          .getQuery();
-        return `EXISTS ${subQuery}`;
-      })
-      .getCount();
-
-    const responseRate = totalMatches > 0 ? matchesWithMessages / totalMatches : 0;
-    if (responseRate >= 0.8) score += 6;
-    else if (responseRate >= 0.6) score += 4;
-    else if (responseRate >= 0.4) score += 2;
-
-    // B. Micro-date Completion Rate (0-4 pts)
-    const completedMicroDates = await this.matchRepository.count({
-      where: [
-        { user1Id: user.id, microDateCompleted: true },
-        { user2Id: user.id, microDateCompleted: true },
-      ],
-    });
-
-    const microDateRate = totalMatches > 0 ? completedMicroDates / totalMatches : 0;
-    if (microDateRate >= 0.7) score += 4;
-    else if (microDateRate >= 0.5) score += 3;
-    else if (microDateRate >= 0.3) score += 1;
-
-    // C. Low Unmatch-by-Others (0-3 pts)
-    const unmatchedByOthers = await this.matchRepository
-      .createQueryBuilder('match')
-      .where('(match.user1Id = :userId OR match.user2Id = :userId)', { userId: user.id })
-      .andWhere('match.isActive = :isActive', { isActive: false })
-      .andWhere('match.unmatchedBy IS NOT NULL')
-      .andWhere('match.unmatchedBy != :userId', { userId: user.id })
-      .getCount();
-
-    const unmatchRate = totalMatches > 0 ? unmatchedByOthers / totalMatches : 0;
-    if (unmatchRate < 0.1) score += 3;
-    else if (unmatchRate < 0.25) score += 2;
-    else if (unmatchRate < 0.5) score += 1;
-
-    // D. Report-Free Bonus (0-2 pts)
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    const recentReports = await this.reportRepository.count({
-      where: {
-        reportedId: user.id,
-        createdAt: MoreThan(ninetyDaysAgo),
-      },
-    });
-
-    if (recentReports === 0) score += 2;
-
-    return Math.min(15, score);
+    return Math.max(0, Math.min(15, Number(user.behavioralScoreValue || 15)));
   }
 
   // ==================== ACTIVITY BONUS ====================
@@ -560,19 +543,19 @@ export class SafetyService {
     if (!profile) return 0;
 
     const photosCount = profile.photos?.length || 0;
-    const photosScore = Math.min(15, photosCount * 3);
+    const photosScore = Math.min(12, photosCount * 3);
 
     const bioLength = (profile.bio || '').trim().length;
     let bioScore = 0;
-    if (bioLength >= 160) bioScore = 5;
-    else if (bioLength >= 100) bioScore = 4;
+    if (bioLength >= 160) bioScore = 4;
+    else if (bioLength >= 100) bioScore = 3;
     else if (bioLength >= 50) bioScore = 2;
 
-    const interestsScore = Math.min(3, profile.interests?.length || 0);
+    const interestsScore = Math.min(2, profile.interests?.length || 0);
     const occupationScore = (profile.occupation || '').trim().length > 0 ? 1 : 0;
     const educationScore = (profile.education || '').trim().length > 0 ? 1 : 0;
 
-    return Math.min(25, photosScore + bioScore + interestsScore + occupationScore + educationScore);
+    return Math.min(20, photosScore + bioScore + interestsScore + occupationScore + educationScore);
   }
 
   // ==================== ADMIN REVIEW ====================
@@ -692,12 +675,14 @@ export class SafetyService {
 
     // ========== SMART CATEGORY HANDLING ==========
 
-    const isIdentityReport = reason === ReportReason.FAKE_PROFILE;
+    const isIdentityReport = [
+      ReportReason.FAKE_PROFILE,
+      ReportReason.IMPERSONATION,
+    ].includes(reason);
     const isSevereReport = reason === ReportReason.UNDERAGE;
     const isBehavioralReport = [
       ReportReason.HARASSMENT,
       ReportReason.SPAM,
-      ReportReason.SCAM,
       ReportReason.INAPPROPRIATE_CONTENT,
     ].includes(reason);
 
@@ -713,52 +698,9 @@ export class SafetyService {
         ScoreChangeCategory.REPORT_PENALTY,
       );
     } else if (isIdentityReport) {
-      // Trigger mandatory re-verification
-      await this.userRepository.update(reportedUserId, {
-        isVerified: false,
-      });
-
-      const latestVerification = await this.verificationRepository.findOne({
-        where: { userId: reportedUserId, verificationStatus: VerificationStatus.VERIFIED },
-        order: { createdAt: 'DESC' },
-      });
-      if (latestVerification) {
-        latestVerification.verificationStatus = VerificationStatus.PENDING;
-        latestVerification.adminNotes = `Re-review triggered by fake profile report from user ${reporterId}`;
-        await this.verificationRepository.save(latestVerification);
-      }
-
-      await this.updateUserSafetyScore(
-        reportedUserId,
-        'Verification revoked: Fake profile report received',
-        ScoreChangeCategory.REPORT_PENALTY,
-      );
+      // Identity reports are penalized after admin review.
     } else if (isBehavioralReport) {
-      // Check for auto-suspension threshold: 3+ unique reporters in 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const uniqueReporters = await this.reportRepository
-        .createQueryBuilder('report')
-        .select('COUNT(DISTINCT report.reporterId)', 'count')
-        .where('report.reportedId = :reportedUserId', { reportedUserId })
-        .andWhere('report.createdAt > :thirtyDaysAgo', { thirtyDaysAgo })
-        .andWhere('report.description != :blocked', { blocked: 'BLOCKED' })
-        .getRawOne();
-
-      const uniqueCount = parseInt(uniqueReporters?.count || '0', 10);
-
-      if (uniqueCount >= 3) {
-        await this.userRepository.update(reportedUserId, {
-          isSuspended: true,
-          suspendedAt: new Date(),
-        });
-        await this.updateUserSafetyScore(
-          reportedUserId,
-          `Auto-suspended: ${uniqueCount} unique reporters in 30 days`,
-          ScoreChangeCategory.REPORT_PENALTY,
-        );
-      }
+      // Behavioral penalties are applied after admin review.
     }
 
     return {
@@ -767,6 +709,61 @@ export class SafetyService {
       message:
         'Report submitted successfully. We will review it within 24-48 hours.',
     };
+  }
+
+  async applyReviewedReportPenalty(reportId: string, actionTaken?: string) {
+    const normalizedAction = (actionTaken || '').trim().toLowerCase();
+    if (!normalizedAction || ['dismissed', 'no_action', 'rejected', 'ignored'].includes(normalizedAction)) {
+      return;
+    }
+
+    const report = await this.reportRepository.findOne({ where: { id: reportId } });
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: report.reportedId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const commonReasons = [
+      ReportReason.HARASSMENT,
+      ReportReason.SPAM,
+      ReportReason.INAPPROPRIATE_CONTENT,
+      ReportReason.OTHER,
+    ];
+    const severeReasons = [
+      ReportReason.FAKE_PROFILE,
+      ReportReason.SCAM,
+      ReportReason.IMPERSONATION,
+    ];
+
+    let shouldRecalculate = false;
+
+    if (commonReasons.includes(report.reason)) {
+      user.behavioralScoreValue = Math.max(0, Number(user.behavioralScoreValue || 15) - 5);
+      user.lastMisbehaviorAt = new Date();
+      user.lastBehaviorRecoveryAt = undefined;
+      shouldRecalculate = true;
+    }
+
+    if (severeReasons.includes(report.reason)) {
+      user.lastMisbehaviorAt = new Date();
+      user.lastBehaviorRecoveryAt = undefined;
+      shouldRecalculate = true;
+    }
+
+    if (!shouldRecalculate) {
+      return;
+    }
+
+    await this.userRepository.save(user);
+    await this.updateUserSafetyScore(
+      user.id,
+      `Reviewed report penalty applied: ${report.reason}`,
+      ScoreChangeCategory.REPORT_PENALTY,
+    );
   }
 
   async getMyReports(userId: string) {
@@ -858,11 +855,179 @@ export class SafetyService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  private calculateIdentityVerification(user: User): number {
-    let score = 0;
-    if (user.phoneVerified) score += 10;
-    if (user.emailVerified) score += 5;
-    return Math.min(15, score);
+  private calculateGoogleGenderMatch(user: User): number {
+    if (!user.googleAccountLinkedAt || !user.googleGender) {
+      return 0;
+    }
+
+    if (user.gender === Gender.OTHER || user.googleGender === Gender.OTHER) {
+      return 0;
+    }
+
+    return user.gender === user.googleGender ? 15 : 0;
+  }
+
+  private calculateAccountAgeScore(createdAt?: Date): number {
+    if (!createdAt) {
+      return 0;
+    }
+
+    const accountAgeDays = Math.floor(
+      (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    return Math.min(10, Math.floor(accountAgeDays / 14));
+  }
+
+  private calculateNameConsistency(user: User) {
+    const maxScore = 5;
+    const appName = this.normalizeName(user.name);
+    const googleName = this.normalizeName(user.googleDisplayName);
+
+    if (!googleName) {
+      return {
+        score: 0,
+        maxScore,
+        appName: user.name?.trim() || undefined,
+        googleName: undefined,
+        status: 'unavailable' as const,
+        reason: 'Available after Google sign-in stores a signup name.',
+        matchedWords: [],
+      };
+    }
+
+    if (!appName) {
+      return {
+        score: 0,
+        maxScore,
+        appName: undefined,
+        googleName: user.googleDisplayName?.trim(),
+        status: 'mismatch' as const,
+        reason: 'Add your in-app name so we can compare it with Google signup.',
+        matchedWords: [],
+      };
+    }
+
+    const appTokens = this.tokenizeName(appName);
+    const googleTokens = this.tokenizeName(googleName);
+    const matchedWords = this.findMatchingNameTokens(appTokens, googleTokens);
+    const exactSetMatch =
+      appTokens.length > 0 &&
+      appTokens.length === googleTokens.length &&
+      matchedWords.length === appTokens.length;
+    const overlapRatio =
+      Math.max(appTokens.length, googleTokens.length) > 0
+        ? matchedWords.length / Math.max(appTokens.length, googleTokens.length)
+        : 0;
+    const hasStrongBoundaryMatch = this.hasStrongBoundaryMatch(appTokens, googleTokens);
+
+    if (appName === googleName || exactSetMatch) {
+      return {
+        score: maxScore,
+        maxScore,
+        appName: user.name?.trim(),
+        googleName: user.googleDisplayName?.trim(),
+        status: 'matched' as const,
+        reason: 'Full name matches Google signup, even if the order is different.',
+        matchedWords,
+      };
+    }
+
+    if (overlapRatio >= 0.75 || (hasStrongBoundaryMatch && matchedWords.length >= 2)) {
+      return {
+        score: 4,
+        maxScore,
+        appName: user.name?.trim(),
+        googleName: user.googleDisplayName?.trim(),
+        status: 'partial' as const,
+        reason: 'Most important name parts match across your app and Google signup.',
+        matchedWords,
+      };
+    }
+
+    if (overlapRatio >= 0.4 || matchedWords.length >= 1) {
+      return {
+        score: 2,
+        maxScore,
+        appName: user.name?.trim(),
+        googleName: user.googleDisplayName?.trim(),
+        status: 'partial' as const,
+        reason: 'Some name parts match, but not enough for a strong consistency check.',
+        matchedWords,
+      };
+    }
+
+    return {
+      score: 0,
+      maxScore,
+      appName: user.name?.trim(),
+      googleName: user.googleDisplayName?.trim(),
+      status: 'mismatch' as const,
+      reason: 'Your in-app name does not match the Google signup name closely enough.',
+      matchedWords: [],
+    };
+  }
+
+  private normalizeName(name?: string): string {
+    return (name || '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private tokenizeName(name: string): string[] {
+    return Array.from(new Set(name.split(' ').filter((token) => token.length >= 2))).slice(0, 5);
+  }
+
+  private findMatchingNameTokens(appTokens: string[], googleTokens: string[]): string[] {
+    const matchedWords = new Set<string>();
+    const usedGoogleIndexes = new Set<number>();
+
+    for (const appToken of appTokens) {
+      const googleIndex = googleTokens.findIndex((googleToken, index) => {
+        if (usedGoogleIndexes.has(index)) return false;
+        return this.areNameTokensCompatible(appToken, googleToken);
+      });
+
+      if (googleIndex >= 0) {
+        usedGoogleIndexes.add(googleIndex);
+        matchedWords.add(appToken);
+      }
+    }
+
+    return Array.from(matchedWords);
+  }
+
+  private hasStrongBoundaryMatch(appTokens: string[], googleTokens: string[]): boolean {
+    if (appTokens.length < 2 || googleTokens.length < 2) {
+      return false;
+    }
+
+    const appFirst = appTokens[0];
+    const appLast = appTokens[appTokens.length - 1];
+    const googleFirst = googleTokens[0];
+    const googleLast = googleTokens[googleTokens.length - 1];
+
+    return (
+      (this.areNameTokensCompatible(appFirst, googleFirst) &&
+        this.areNameTokensCompatible(appLast, googleLast)) ||
+      (this.areNameTokensCompatible(appFirst, googleLast) &&
+        this.areNameTokensCompatible(appLast, googleFirst))
+    );
+  }
+
+  private areNameTokensCompatible(left: string, right: string): boolean {
+    if (left === right) {
+      return true;
+    }
+
+    const minLength = Math.min(left.length, right.length);
+    if (minLength >= 4 && (left.startsWith(right) || right.startsWith(left))) {
+      return true;
+    }
+
+    return minLength >= 4 && (left.includes(right) || right.includes(left));
   }
 
   private calculateSimilarity(str1: string, str2: string): number {

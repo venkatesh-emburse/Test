@@ -35,7 +35,9 @@ final currentUserProvider = FutureProvider.autoDispose<User>((ref) async {
     // Fall back to stored safetyScore from /auth/me
   }
 
-  print('👤 Profile: Loaded user ${userData['name']} with ${(profileData?['photos'] as List?)?.length ?? 0} photos');
+  debugPrint(
+    '👤 Profile: Loaded user ${userData['name']} with ${(profileData?['photos'] as List?)?.length ?? 0} photos',
+  );
   return User.fromJson(userData);
 });
 
@@ -54,7 +56,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.camera,
-        maxWidth: 800,  // Reduced for smaller uploads
+        maxWidth: 800, // Reduced for smaller uploads
         maxHeight: 1000,
         imageQuality: 60, // Reduced for smaller uploads
         preferredCameraDevice: CameraDevice.front,
@@ -81,7 +83,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       if (uploadResponse.data['success'] == true) {
         final photoUrl = uploadResponse.data['secureUrl'];
-        
+
         // Add photo to profile
         await ref.read(dioProvider).post(
           '/profile/photos',
@@ -90,7 +92,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
         // Refresh user data
         ref.invalidate(currentUserProvider);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Photo uploaded successfully!')),
@@ -112,10 +114,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('IDENTITY', style: Theme.of(context).textTheme.labelSmall),
+            Text('Profile', style: Theme.of(context).textTheme.headlineMedium),
+          ],
+        ),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -128,10 +138,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       body: Stack(
         children: [
-          userAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
-            data: (user) => _buildProfile(context, ref, user),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.surface,
+                  colorScheme.surfaceContainerLow,
+                  colorScheme.surface,
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: -100,
+            right: -40,
+            child:
+                _buildAura(AppTheme.primaryColor.withValues(alpha: 0.14), 220),
+          ),
+          Positioned(
+            bottom: -100,
+            left: -40,
+            child: _buildAura(
+                AppTheme.secondaryColor.withValues(alpha: 0.12), 220),
+          ),
+          SafeArea(
+            child: userAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: _buildInfoCard(
+                    title: 'Unable to load profile',
+                    subtitle: '$e',
+                    icon: Icons.person_off_rounded,
+                  ),
+                ),
+              ),
+              data: (user) => _buildProfile(context, ref, user),
+            ),
           ),
           if (_isUploading)
             Container(
@@ -159,23 +205,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Profile Header
           Container(
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHigh
+                  .withValues(alpha: 0.84),
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: AppTheme.neonGlow(AppTheme.primaryColor,
+                  blur: 20, opacity: 0.08),
+            ),
             child: Column(
               children: [
-                // Avatar with camera button
                 Stack(
                   children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      backgroundImage: user.profile?.photos.isNotEmpty == true
-                          ? NetworkImage(user.profile!.photos.first)
-                          : null,
-                      child: user.profile?.photos.isEmpty ?? true
-                          ? const Icon(Icons.person, size: 60)
-                          : null,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        width: 124,
+                        height: 150,
+                        child: user.profile?.photos.isNotEmpty == true
+                            ? Image.network(
+                                user.profile!.photos.first,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                                child: const Icon(Icons.person, size: 60),
+                              ),
+                      ),
                     ),
                     Positioned(
                       right: 0,
@@ -186,7 +248,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: AppTheme.neonGlow(
+                              Theme.of(context).primaryColor,
+                              blur: 16,
+                              opacity: 0.18,
+                            ),
                           ),
                           child: const Icon(
                             Icons.camera_alt,
@@ -199,25 +266,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                Text('PROFILE SIGNAL',
+                    style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(height: 6),
                 Text(
                   '${user.displayName}, ${user.displayAge}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(context)
+                      .textTheme
+                      .displayMedium
+                      ?.copyWith(fontSize: 34),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  user.intent.replaceAll('_', ' ').toUpperCase(),
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
                 if (user.isVerified)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppTheme.success.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
+                      color: AppTheme.success.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.verified_rounded, color: AppTheme.success, size: 15),
+                        Icon(Icons.verified_rounded,
+                            color: AppTheme.success, size: 15),
                         SizedBox(width: 4),
                         Text(
                           'Verified',
@@ -236,16 +313,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
           // Stats
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerLow
+                  .withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildStat('Trust Score', '${user.safetyScore.toInt()}'),
                 _buildStat('Photos', '${user.profile?.photos.length ?? 0}/6'),
-                _buildStat('Completeness', '${user.profile?.profileCompleteness ?? 0}%'),
+                _buildStat('Completeness',
+                    '${user.profile?.profileCompleteness ?? 0}%'),
               ],
             ),
           ),
@@ -271,7 +354,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _buildMenuItem(
             icon: Icons.privacy_tip,
             title: 'Privacy Settings',
-            onTap: () => context.push('/profile/edit'),
+            onTap: () => context.push('/profile/privacy'),
           ),
           _buildMenuItem(
             icon: Icons.help,
@@ -305,10 +388,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 4),
         Text(
@@ -330,12 +410,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Color? color,
     Widget? trailing,
   }) {
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(title, style: TextStyle(color: color)),
-      subtitle: subtitle != null ? Text(subtitle) : null,
-      trailing: trailing ?? Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
-      onTap: onTap,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHigh
+            .withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ListTile(
+        leading:
+            Icon(icon, color: color ?? Theme.of(context).colorScheme.primary),
+        title: Text(title, style: TextStyle(color: color)),
+        subtitle: subtitle != null ? Text(subtitle) : null,
+        trailing: trailing ??
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHigh
+            .withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: AppTheme.primaryColor),
+          const SizedBox(height: 16),
+          Text(title, style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAura(Color color, double size) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+        ),
+      ),
     );
   }
 }

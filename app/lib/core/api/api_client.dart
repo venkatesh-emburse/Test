@@ -1,26 +1,12 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// API Configuration
-// Override with: flutter run --dart-define=API_HOST=192.168.29.15
-// Android emulator: 10.0.2.2 (default for Android)
-// iOS simulator: localhost
-// Real device: your machine's LAN IP (pass via --dart-define)
-const String _apiHostOverride = String.fromEnvironment('API_HOST');
-const int apiPort = 6700;
-
-String get _host {
-  if (_apiHostOverride.isNotEmpty) return _apiHostOverride;
-  if (kIsWeb) return 'localhost';
-  if (Platform.isAndroid) return '10.0.2.2';
-  return 'localhost'; // iOS simulator
-}
-
-String get baseUrl => 'https://fcfe-2405-201-c011-49ce-d5ca-a969-1f7f-7c33.ngrok-free.app/api/v1';
-String get wsUrl => 'https://fcfe-2405-201-c011-49ce-d5ca-a969-1f7f-7c33.ngrok-free.app';
+String get baseUrl =>
+    'https://a8d5cdd05627.ngrok.app/api/v1';
+String get wsUrl =>
+    'https://a8d5cdd05627.ngrok.app';
 
 // Secure Storage Provider
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
@@ -49,8 +35,10 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(InterceptorsWrapper(
     onRequest: (options, handler) async {
       final token = ref.read(authTokenProvider);
-      print('🔐 API Request: ${options.method} ${options.path}');
-      print('🔑 Token: ${token != null ? "exists (${token.substring(0, 20)}...)" : "null"}');
+      debugPrint('🔐 API Request: ${options.method} ${options.path}');
+      debugPrint(
+        '🔑 Token: ${token != null ? "exists (${token.substring(0, 20)}...)" : "null"}',
+      );
       if (token != null) {
         options.headers['Authorization'] = 'Bearer $token';
       }
@@ -61,18 +49,18 @@ final dioProvider = Provider<Dio>((ref) {
         // Token expired - try refresh
         final storage = ref.read(secureStorageProvider);
         final refreshToken = await storage.read(key: 'refresh_token');
-        
+
         if (refreshToken != null) {
           try {
             final response = await Dio().post(
               '$baseUrl/auth/refresh',
               data: {'refreshToken': refreshToken},
             );
-            
+
             final newToken = response.data['accessToken'];
             ref.read(authTokenProvider.notifier).state = newToken;
             await storage.write(key: 'access_token', value: newToken);
-            
+
             // Retry the request
             final opts = error.requestOptions;
             opts.headers['Authorization'] = 'Bearer $newToken';

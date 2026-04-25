@@ -185,12 +185,18 @@ export class SafetyScoreBreakdownDto {
 
   @ApiProperty()
   breakdown: {
-    selfieVerification: number; // 0-35
-    profileQuality: number; // 0-30
-    identityVerification: number; // 0-15
+    selfieVerification: number; // 0-30
+    profileQuality: number; // 0-20
     accountAge: number; // 0-10
-    reportPenalty: number; // 0 to -30
+    behavioralScore: number; // 0-15
+    activityBonus: number; // 0-5
   };
+
+  @ApiProperty()
+  googleConnected: boolean;
+
+  @ApiProperty()
+  canIncreaseWithGoogle: boolean;
 
   @ApiProperty()
   isVerified: boolean;

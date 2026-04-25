@@ -40,6 +40,13 @@ class DiscoveryScreen extends ConsumerStatefulWidget {
 
 class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   final CardSwiperController _controller = CardSwiperController();
+  final Set<String> _dismissedProfileIds = <String>{};
+
+  List<DiscoveryProfile> _visibleProfiles(List<DiscoveryProfile> profiles) {
+    return profiles
+        .where((profile) => !_dismissedProfileIds.contains(profile.id))
+        .toList();
+  }
 
   Future<void> _swipe(String profileId, String action) async {
     try {
@@ -50,8 +57,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
       if (response.data['isMatch'] == true) {
         final matchId = response.data['match']?['id'];
-        final userName =
-            response.data['match']?['user']?['name'] ?? 'Someone';
+        final userName = response.data['match']?['user']?['name'] ?? 'Someone';
         if (mounted) _showMatchDialog(matchId, userName);
       }
     } catch (e) {
@@ -119,19 +125,24 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     );
   }
 
+  void _openLikesScreen() {
+    context.push('/likes');
+  }
+
   @override
   Widget build(BuildContext context) {
     final profilesAsync = ref.watch(discoveryProfilesProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.favorite_rounded,
-                color: Theme.of(context).primaryColor, size: 22),
-            const SizedBox(width: 8),
-            const Text('Discover'),
+            Text('DISCOVERY', style: textTheme.labelSmall),
+            Text('Kinetic Pulse', style: textTheme.headlineMedium),
           ],
         ),
         actions: [
@@ -156,46 +167,68 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.favorite_border_rounded, size: 22),
+            onPressed: _openLikesScreen,
+          ),
+          IconButton(
             icon: const Icon(Icons.tune_rounded, size: 22),
             onPressed: () {},
           ),
         ],
       ),
-      body: profilesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.wifi_off_rounded,
-                    size: 56,
-                    color: Theme.of(context).colorScheme.outline),
-                const SizedBox(height: 16),
-                const Text(
-                  'Unable to load profiles',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Check your connection and try again',
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () => ref.refresh(discoveryProfilesProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.surface,
+              colorScheme.surfaceContainerLow,
+              colorScheme.surface,
+            ],
           ),
         ),
-        data: (profiles) {
-          if (profiles.isEmpty) return _buildEmptyState();
-          return _buildSwipeStack(profiles);
-        },
+        child: Stack(
+          children: [
+            Positioned(
+              top: -120,
+              left: -40,
+              child: _buildAura(
+                  AppTheme.primaryColor.withValues(alpha: 0.16), 220),
+            ),
+            Positioned(
+              top: 180,
+              right: -70,
+              child: _buildAura(
+                  AppTheme.secondaryColor.withValues(alpha: 0.12), 200),
+            ),
+            SafeArea(
+              child: profilesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildMessageState(
+                      icon: Icons.wifi_off_rounded,
+                      title: 'Signal lost',
+                      message:
+                          'Check your connection and tap back into the pulse.',
+                      action: ElevatedButton(
+                        onPressed: () => ref.refresh(discoveryProfilesProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ),
+                  ),
+                ),
+                data: (profiles) {
+                  final visibleProfiles = _visibleProfiles(profiles);
+                  if (visibleProfiles.isEmpty) return _buildEmptyState();
+                  return _buildSwipeStack(visibleProfiles);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -204,23 +237,11 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded,
-                size: 64, color: Theme.of(context).colorScheme.outline),
-            const SizedBox(height: 16),
-            const Text(
-              'No more profiles',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Check back later for new people',
-              style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-          ],
+        child: _buildMessageState(
+          icon: Icons.radar_rounded,
+          title: 'No more profiles in range',
+          message:
+              'Your feed is clear for now. New signals will show up here soon.',
         ),
       ),
     );
@@ -229,23 +250,58 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
   Widget _buildSwipeStack(List<DiscoveryProfile> profiles) {
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildMetricChip(
+                  context,
+                  label: 'LIVE STACK',
+                  value: '${profiles.length}',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMetricChip(
+                  context,
+                  label: 'MODE',
+                  value: 'MATCH BY INTENT',
+                ),
+              ),
+            ],
+          ),
+        ),
         Expanded(
           child: CardSwiper(
+            key: ValueKey(profiles.map((profile) => profile.id).join(',')),
             controller: _controller,
             cardsCount: profiles.length,
             numberOfCardsDisplayed: profiles.length.clamp(1, 2),
-            backCardOffset: const Offset(0, -30),
-            padding: const EdgeInsets.all(16),
+            allowedSwipeDirection: const AllowedSwipeDirection.only(
+              left: true,
+              right: true,
+            ),
+            backCardOffset: const Offset(0, -24),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             onSwipe: (previousIndex, currentIndex, direction) {
               final profile = profiles[previousIndex];
               String action = 'pass';
               if (direction == CardSwiperDirection.right) action = 'like';
-              if (direction == CardSwiperDirection.top) action = 'super_like';
+
+              setState(() {
+                _dismissedProfileIds.add(profile.id);
+              });
+
               _swipe(profile.id, action);
               return true;
             },
             cardBuilder:
                 (context, index, percentThresholdX, percentThresholdY) {
+              if (index >= profiles.length) {
+                return const SizedBox.shrink();
+              }
+
               return _buildProfileCard(profiles[index], onTap: () {
                 _openProfileDetails(profiles[index]);
               });
@@ -255,7 +311,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
 
         // Action buttons
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -263,12 +319,6 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                 icon: Icons.close_rounded,
                 color: AppTheme.passColor,
                 onTap: () => _controller.swipeLeft(),
-              ),
-              _buildActionButton(
-                icon: Icons.star_rounded,
-                color: AppTheme.superLikeColor,
-                size: 64,
-                onTap: () => _controller.swipeTop(),
               ),
               _buildActionButton(
                 icon: Icons.favorite_rounded,
@@ -290,7 +340,6 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
           profile: profile,
           onLike: () => _controller.swipeRight(),
           onPass: () => _controller.swipeLeft(),
-          onSuperLike: () => _controller.swipeTop(),
         ),
       ),
     );
@@ -301,17 +350,15 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: AppTheme.neonGlow(
+            AppTheme.primaryColor,
+            blur: 26,
+            opacity: 0.08,
+          ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(4),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -340,16 +387,18 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
               // Gradient overlay
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.5, 1.0],
-                    colors: [
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.75),
-                    ],
-                  ),
+                  gradient: AppTheme.profileCardGradient,
+                ),
+              ),
+
+              Positioned(
+                left: 16,
+                top: 18,
+                child: _buildTag(
+                  context,
+                  icon: Icons.bolt_rounded,
+                  label: '${profile.compatibilityScore}% MATCH',
+                  color: AppTheme.secondaryColor,
                 ),
               ),
 
@@ -366,12 +415,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                         Expanded(
                           child: Text(
                             '${profile.name}, ${profile.age}',
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: -0.3,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .displayMedium
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                ),
                           ),
                         ),
                         if (profile.isVerified)
@@ -379,19 +429,25 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
+                              color:
+                                  AppTheme.primaryColor.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: AppTheme.neonGlow(
+                                AppTheme.primaryColor,
+                                blur: 18,
+                                opacity: 0.18,
+                              ),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.verified_rounded,
-                                    color: Colors.white, size: 14),
+                                    color: AppTheme.primaryColor, size: 14),
                                 SizedBox(width: 4),
                                 Text(
                                   'Verified',
                                   style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.primaryColor,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600),
                                 ),
@@ -405,7 +461,7 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                       Text(
                         'Member since ${profile.memberSince}',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 12,
                         ),
                       ),
@@ -427,17 +483,13 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
-                        children:
-                            profile.interests.take(4).map((interest) {
+                        children: profile.interests.take(4).map((interest) {
                           return Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                              ),
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               interest,
@@ -462,14 +514,16 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                      ),
-                    ],
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHigh
+                        .withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: AppTheme.neonGlow(
+                      _getTierColor(profile.verificationTier),
+                      blur: 16,
+                      opacity: 0.15,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -524,20 +578,120 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
           shape: BoxShape.circle,
-          border: Border.all(
-            color: color.withValues(alpha: 0.2),
+          boxShadow: AppTheme.neonGlow(
+            color,
+            blur: 20,
+            opacity: 0.2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Icon(icon, color: color, size: size * 0.45),
+      ),
+    );
+  }
+
+  Widget _buildMetricChip(
+    BuildContext context, {
+    required String label,
+    required String value,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 4),
+          Text(value, style: Theme.of(context).textTheme.titleMedium),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageState({
+    required IconData icon,
+    required String title,
+    required String message,
+    Widget? action,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHigh
+            .withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow:
+            AppTheme.neonGlow(AppTheme.primaryColor, blur: 20, opacity: 0.08),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: AppTheme.primaryColor),
+          const SizedBox(height: 16),
+          Text(title, style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          if (action != null) ...[
+            const SizedBox(height: 20),
+            action,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAura(Color color, double size) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTag(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style:
+                Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+          ),
+        ],
       ),
     );
   }

@@ -582,6 +582,7 @@ export class AdminService {
     report.actionTaken = dto.actionTaken;
 
     await this.reportRepository.save(report);
+    await this.safetyService.applyReviewedReportPenalty(report.id, dto.actionTaken);
 
     return {
       success: true,

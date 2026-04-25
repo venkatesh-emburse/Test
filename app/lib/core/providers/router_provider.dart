@@ -11,9 +11,11 @@ import '../../features/auth/screens/email_otp_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/discovery/screens/home_screen.dart';
 import '../../features/discovery/screens/discovery_screen.dart';
+import '../../features/discovery/screens/likes_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/manage_photos_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
+import '../../features/profile/screens/privacy_settings_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/location/screens/map_screen.dart';
@@ -75,52 +77,53 @@ class _ShellScreenState extends State<ShellScreen> {
           decoration: BoxDecoration(
             border: Border(
               top: BorderSide(
-                color: Theme.of(context).dividerTheme.color ?? Colors.grey.shade200,
+                color: Theme.of(context).dividerTheme.color ??
+                    Colors.grey.shade200,
                 width: 0.5,
               ),
             ),
           ),
           child: NavigationBar(
-          selectedIndex: widget.currentIndex,
-          onDestinationSelected: (index) {
-            switch (index) {
-              case 0:
-                context.go('/discovery');
-                break;
-              case 1:
-                context.go('/map');
-                break;
-              case 2:
-                context.go('/chat');
-                break;
-              case 3:
-                context.go('/profile');
-                break;
-            }
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.favorite_outline_rounded),
-              selectedIcon: Icon(Icons.favorite_rounded),
-              label: 'Discover',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.location_on_outlined),
-              selectedIcon: Icon(Icons.location_on_rounded),
-              label: 'Map',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline_rounded),
-              selectedIcon: Icon(Icons.chat_bubble_rounded),
-              label: 'Chat',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
-            ),
-          ],
-        ),
+            selectedIndex: widget.currentIndex,
+            onDestinationSelected: (index) {
+              switch (index) {
+                case 0:
+                  context.go('/discovery');
+                  break;
+                case 1:
+                  context.go('/map');
+                  break;
+                case 2:
+                  context.go('/chat');
+                  break;
+                case 3:
+                  context.go('/profile');
+                  break;
+              }
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.favorite_outline_rounded),
+                selectedIcon: Icon(Icons.favorite_rounded),
+                label: 'Discover',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.location_on_outlined),
+                selectedIcon: Icon(Icons.location_on_rounded),
+                label: 'Map',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.chat_bubble_outline_rounded),
+                selectedIcon: Icon(Icons.chat_bubble_rounded),
+                label: 'Chat',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -134,7 +137,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
 
       // Auth routes — always allowed
-      const authRoutes = ['/', '/auth/login', '/auth/otp', '/auth/email', '/auth/email/otp', '/auth/onboarding'];
+      const authRoutes = [
+        '/',
+        '/auth/login',
+        '/auth/otp',
+        '/auth/email',
+        '/auth/email/otp',
+        '/auth/onboarding'
+      ];
       if (authRoutes.contains(location)) return null;
 
       // For all main app routes, check profile completion
@@ -196,6 +206,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DiscoveryScreen(),
           ),
           GoRoute(
+            path: '/likes',
+            builder: (context, state) => const LikesScreen(),
+          ),
+          GoRoute(
             path: '/map',
             builder: (context, state) => const MapScreen(),
           ),
@@ -225,6 +239,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const EditProfileScreen(),
       ),
 
+      // Privacy Settings (outside shell to have back button)
+      GoRoute(
+        path: '/profile/privacy',
+        builder: (context, state) => const PrivacySettingsScreen(),
+      ),
+
       // Profile Photos (outside shell to have back button)
       GoRoute(
         path: '/profile/photos',
@@ -245,4 +265,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-

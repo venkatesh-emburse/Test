@@ -31,6 +31,15 @@ export class User extends BaseEntity {
   @Column()
   name: string;
 
+  @Column({ name: 'google_display_name', nullable: true })
+  googleDisplayName?: string;
+
+  @Column({ name: 'google_gender', type: 'enum', enum: Gender, nullable: true })
+  googleGender?: Gender;
+
+  @Column({ name: 'google_account_linked_at', type: 'timestamp', nullable: true })
+  googleAccountLinkedAt?: Date;
+
   @Column({ name: 'date_of_birth', type: 'date' })
   dateOfBirth: Date;
 
@@ -51,6 +60,30 @@ export class User extends BaseEntity {
     default: 0,
   })
   safetyScore: number;
+
+  @Column({
+    name: 'behavioral_score_value',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    default: 15,
+  })
+  behavioralScoreValue: number;
+
+  @Column({
+    name: 'account_age_score',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    default: 0,
+  })
+  accountAgeScore: number;
+
+  @Column({ name: 'last_misbehavior_at', type: 'timestamp', nullable: true })
+  lastMisbehaviorAt?: Date;
+
+  @Column({ name: 'last_behavior_recovery_at', type: 'timestamp', nullable: true })
+  lastBehaviorRecoveryAt?: Date;
 
   @Column({ name: 'is_verified', default: false })
   isVerified: boolean;
