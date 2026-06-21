@@ -72,12 +72,12 @@ export class SetIntentDto {
 }
 
 export class CreateProfileDto {
-  @ApiProperty({ example: 'John' })
+  @ApiPropertyOptional({ example: 'John' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MinLength(2)
   @MaxLength(50)
-  name: string;
+  name?: string;
 
   @ApiProperty({
     example: '1995-06-15',

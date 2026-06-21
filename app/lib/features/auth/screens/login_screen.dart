@@ -143,7 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: Theme.of(context).textTheme.labelSmall),
                     const SizedBox(height: 8),
                     Text(
-                      'LiveConnect',
+                      'Kinetic Pulse',
                       style: Theme.of(context).textTheme.displayMedium,
                     ),
                     const SizedBox(height: 6),

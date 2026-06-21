@@ -34,6 +34,14 @@ export class ChatController {
 
   // ==================== CONVERSATIONS ====================
 
+  @Get('unread-count')
+  @ApiOperation({ summary: 'Get total unread message count across all chats' })
+  @ApiResponse({ status: 200, description: 'Total unread count' })
+  async getUnreadCount(@CurrentUser('id') userId: string) {
+    const count = await this.chatService.getTotalUnreadCount(userId);
+    return { unreadCount: count };
+  }
+
   @Get('conversations')
   @ApiOperation({
     summary: 'Get all conversations (matches with unlocked chat)',

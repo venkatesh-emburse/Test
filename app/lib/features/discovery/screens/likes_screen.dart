@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/app_theme.dart';
+import 'profile_details_screen.dart';
 
 final receivedLikesProvider =
     FutureProvider.autoDispose<List<ReceivedLike>>((ref) async {
@@ -137,7 +139,7 @@ class LikesScreen extends ConsumerWidget {
                         }
 
                         final like = likes[index - 1];
-                        return _buildLikeCard(context, like);
+                        return _buildLikeCard(context, ref, like);
                       },
                     ),
                   );
@@ -150,8 +152,32 @@ class LikesScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLikeCard(BuildContext context, ReceivedLike like) {
-    return Container(
+  Widget _buildLikeCard(BuildContext context, WidgetRef ref, ReceivedLike like) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProfileDetailsScreen(
+              profile: DiscoveryProfile(
+                id: like.userId,
+                name: like.name,
+                age: like.age,
+                gender: 'other',
+                intent: like.intent,
+                safetyScore: like.safetyScore,
+                isVerified: like.isVerified,
+                compatibilityScore: 0,
+                photos: like.photos,
+                bio: like.bio,
+              ),
+              onLike: () => _handleLike(context, ref, like),
+              onPass: () => Navigator.pop(context),
+            ),
+          ),
+        );
+      },
+      child: Container(
       decoration: BoxDecoration(
         color: Theme.of(context)
             .colorScheme
@@ -234,6 +260,90 @@ class LikesScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Future<void> _handleLike(BuildContext context, WidgetRef ref, ReceivedLike like) async {
+    try {
+      final response = await ref.read(dioProvider).post(
+        '/discovery/swipe',
+        data: {'targetUserId': like.userId, 'action': 'like'},
+      );
+
+      ref.invalidate(receivedLikesProvider);
+
+      if (!context.mounted) return;
+
+      if (response.data['isMatch'] == true) {
+        final matchId = response.data['match']?['id'];
+        final userName = response.data['match']?['user']?['name'] ?? like.name;
+        _showMatchDialog(context, matchId, userName);
+      } else {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Like error: $e');
+    }
+  }
+
+  void _showMatchDialog(BuildContext context, String? matchId, String userName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppTheme.likeColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.favorite_rounded,
+                    size: 32, color: AppTheme.likeColor),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "It's a Match!",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'You and $userName liked each other',
+                style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Keep Swiping'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (matchId != null)
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.pop(context);
+                          context.push('/chat/$matchId');
+                        },
+                        child: const Text('Send Message'),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

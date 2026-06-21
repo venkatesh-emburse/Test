@@ -28,8 +28,8 @@ export class User extends BaseEntity {
   @Index()
   firebaseUid?: string;
 
-  @Column()
-  name: string;
+  @Column({ nullable: true })
+  name?: string;
 
   @Column({ name: 'google_display_name', nullable: true })
   googleDisplayName?: string;
@@ -40,11 +40,11 @@ export class User extends BaseEntity {
   @Column({ name: 'google_account_linked_at', type: 'timestamp', nullable: true })
   googleAccountLinkedAt?: Date;
 
-  @Column({ name: 'date_of_birth', type: 'date' })
-  dateOfBirth: Date;
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true })
+  dateOfBirth?: Date;
 
-  @Column({ type: 'enum', enum: Gender })
-  gender: Gender;
+  @Column({ type: 'enum', enum: Gender, nullable: true })
+  gender?: Gender;
 
   @Column({ type: 'enum', enum: UserIntent })
   intent: UserIntent;

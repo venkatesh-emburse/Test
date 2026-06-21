@@ -1,8 +1,8 @@
-# LiveConnect - Safety-First Dating App
+# Kinetic Pulse - Safety-First Dating App
 
 ## Project Overview
 
-LiveConnect is a location-based dating app built for the Indian market. The core differentiator is a **Trust/Safety Score** system (0-100) that combats fake profiles, scammers, and gold diggers — a major problem in Indian dating apps. Users are matched by **intent** (marriage, long-term, short-term, companionship) and **compatibility**, not proximity.
+Kinetic Pulse is a location-based dating app built for the Indian market. The core differentiator is a **Trust/Safety Score** system (0-100) that combats fake profiles, scammers, and gold diggers — a major problem in Indian dating apps. Users are matched by **intent** (marriage, long-term, short-term, companionship) and **compatibility**, not proximity.
 
 **V1 is a free launch** — no premium plans, no payment processing. All features are available to all users with configurable daily limits.
 

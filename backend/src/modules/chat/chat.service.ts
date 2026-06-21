@@ -185,7 +185,7 @@ export class ChatService {
         matchId: match.id,
         otherUser: {
           id: otherUser.id,
-          name: otherUser.name,
+          name: otherUser.name ?? 'New User',
           photos: otherUser.profile?.photos,
           isVerified: otherUser.isVerified,
           lastActiveAt: otherUser.lastActiveAt,
@@ -340,5 +340,34 @@ export class ChatService {
     return this.matchRepository.findOne({
       where: { id: matchId },
     });
+  }
+
+  // ==================== UNREAD COUNT ====================
+
+  async getTotalUnreadCount(userId: string): Promise<number> {
+    const matches = await this.matchRepository.find({
+      where: [
+        { user1Id: userId, isActive: true, chatUnlocked: true },
+        { user2Id: userId, isActive: true, chatUnlocked: true },
+      ],
+    });
+
+    if (matches.length === 0) return 0;
+
+    let total = 0;
+    for (const match of matches) {
+      const otherUserId =
+        match.user1Id === userId ? match.user2Id : match.user1Id;
+      const count = await this.messageRepository.count({
+        where: {
+          matchId: match.id,
+          senderId: otherUserId,
+          readAt: IsNull(),
+          isDeleted: false,
+        },
+      });
+      total += count;
+    }
+    return total;
   }
 }

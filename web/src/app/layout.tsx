@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LiveConnect - Safety-First Dating App",
-  description: "Find genuine connections with verified profiles. LiveConnect uses trust scores and intent-based matching to help you meet real people.",
+  title: "Kinetic Pulse - Safety-First Dating App",
+  description: "Find genuine connections with verified profiles. Kinetic Pulse uses trust scores and intent-based matching to help you meet real people.",
 };
 
 export default function RootLayout({

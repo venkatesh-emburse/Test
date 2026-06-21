@@ -1,6 +1,6 @@
-# LiveConnect Developer Guide
+# Kinetic Pulse Developer Guide
 
-Complete guide for setting up and running the LiveConnect dating app locally.
+Complete guide for setting up and running the Kinetic Pulse dating app locally.
 
 ## 📋 Prerequisites
 

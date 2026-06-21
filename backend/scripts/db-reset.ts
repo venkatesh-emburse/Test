@@ -26,8 +26,11 @@ import {
   Signal,
   Report,
   SafetyVerification,
+  SafetyScoreLog,
   OtpCode,
   RefreshToken,
+  AdminUser,
+  Feedback,
 } from '../src/database/entities';
 
 async function resetDatabase(): Promise<void> {
@@ -47,8 +50,11 @@ async function resetDatabase(): Promise<void> {
       Signal,
       Report,
       SafetyVerification,
+      SafetyScoreLog,
       OtpCode,
       RefreshToken,
+      AdminUser,
+      Feedback,
     ],
     synchronize: false, // we handle schema ourselves here
     logging: true,
@@ -73,6 +79,9 @@ async function resetDatabase(): Promise<void> {
   // Reinstall extensions that live in public (wiped by the DROP above)
   await dataSource.query(
     `CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA "${schema}"`,
+  );
+  await dataSource.query(
+    `CREATE EXTENSION IF NOT EXISTS "postgis" SCHEMA "${schema}"`,
   );
 
   console.log('🏗️  Synchronising schema (recreating tables from entities)…');

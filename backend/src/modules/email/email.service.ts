@@ -42,9 +42,9 @@ export class EmailService {
       await this.transporter.sendMail({
         from,
         to,
-        subject: 'Your LiveConnect Login Code',
+        subject: 'Your Kinetic Pulse Login Code',
         html: this.buildOtpEmailHtml(otpCode),
-        text: `Your LiveConnect verification code is: ${otpCode}\n\nThis code expires in 10 minutes. If you didn't request this, please ignore this email.`,
+        text: `Your Kinetic Pulse verification code is: ${otpCode}\n\nThis code expires in 10 minutes. If you didn't request this, please ignore this email.`,
       });
       this.logger.log(`📧 OTP email sent to ${to}`);
     } catch (error) {
@@ -61,7 +61,7 @@ export class EmailService {
           <div style="display: inline-block; background: #e11d48; border-radius: 16px; padding: 12px 16px;">
             <span style="color: white; font-size: 24px;">❤</span>
           </div>
-          <h2 style="margin: 16px 0 4px; color: #111827; font-size: 22px;">LiveConnect</h2>
+          <h2 style="margin: 16px 0 4px; color: #111827; font-size: 22px;">Kinetic Pulse</h2>
           <p style="margin: 0; color: #6b7280; font-size: 14px;">Your verification code</p>
         </div>
 
@@ -82,7 +82,7 @@ export class EmailService {
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
 
         <p style="color: #9ca3af; font-size: 11px; text-align: center;">
-          LiveConnect — Safety-first dating for genuine connections
+          Kinetic Pulse — Safety-first dating for genuine connections
         </p>
       </div>
     `;

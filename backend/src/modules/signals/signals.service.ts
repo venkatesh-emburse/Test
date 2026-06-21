@@ -149,7 +149,7 @@ export class SignalsService {
       signalType: signal.signalType,
       fromUser: {
         id: signal.sender.id,
-        name: signal.sender.name,
+        name: signal.sender.name ?? 'New User',
         photos: signal.sender.profile?.photos,
         isVerified: signal.sender.isVerified,
       },
@@ -188,7 +188,7 @@ export class SignalsService {
       signalType: signal.signalType,
       toUser: {
         id: signal.receiver.id,
-        name: signal.receiver.name,
+        name: signal.receiver.name ?? 'New User',
         photos: signal.receiver.profile?.photos,
       },
       createdAt: signal.createdAt,

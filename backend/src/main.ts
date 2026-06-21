@@ -39,7 +39,7 @@ async function bootstrap() {
 
   // Swagger API Documentation
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('LiveConnect API')
+    .setTitle('Kinetic Pulse API')
     .setDescription('Dating App with Safety-First Design')
     .setVersion('1.0')
     .addBearerAuth()
@@ -58,7 +58,7 @@ async function bootstrap() {
 
   await app.listen(port);
 
-  console.log(`🚀 LiveConnect API running on: http://localhost:${port}`);
+  console.log(`🚀 Kinetic Pulse API running on: http://localhost:${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api`);
 }
 

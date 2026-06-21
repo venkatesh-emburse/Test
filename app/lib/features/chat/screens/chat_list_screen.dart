@@ -6,10 +6,19 @@ import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/app_theme.dart';
 
-final conversationsProvider =
-    FutureProvider.autoDispose<List<Match>>((ref) async {
-  final response = await ref.read(dioProvider).get('/chat/conversations');
-  return (response.data as List).map((json) => Match.fromJson(json)).toList();
+final conversationsProvider = StreamProvider<List<Match>>((ref) async* {
+  final dio = ref.read(dioProvider);
+  while (true) {
+    try {
+      final response = await dio.get('/chat/conversations');
+      yield (response.data as List)
+          .map((json) => Match.fromJson(json))
+          .toList();
+    } catch (_) {
+      yield [];
+    }
+    await Future.delayed(const Duration(seconds: 10));
+  }
 });
 
 class ChatListScreen extends ConsumerWidget {

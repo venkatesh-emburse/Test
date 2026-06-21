@@ -323,10 +323,10 @@ export class LocationService {
 
     return {
       id: user.id,
-      name: user.name,
+      name: user.name ?? 'New User',
       age: age,
       photos: user.profile?.photos,
-      gender: user.gender,
+      gender: user.gender ?? 'other',
       intent: user.intent,
       safetyScore: Number(user.safetyScore),
       isVerified: user.isVerified,

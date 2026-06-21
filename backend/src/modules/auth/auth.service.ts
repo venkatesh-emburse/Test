@@ -252,9 +252,8 @@ export class AuthService {
           googleDisplayName: googleDisplayName || undefined,
           googleGender: googleGender || undefined,
           googleAccountLinkedAt: googleDisplayName ? new Date() : undefined,
-          dateOfBirth: new Date('1990-01-01'),
-          gender: Gender.OTHER,
-          intent: UserIntent.LONG_TERM,
+          // No placeholder DOB/gender — forces onboarding for new users
+          intent: UserIntent.LONG_TERM, // sensible default, changeable in profile
         });
         await this.userRepository.save(user);
         console.log('✅ Created new user via Firebase:', user.id);
@@ -558,7 +557,7 @@ export class AuthService {
     }
 
     // Update user basic info
-    user.name = dto.name;
+    if (dto.name) user.name = dto.name;
     user.dateOfBirth = new Date(dto.dateOfBirth);
     user.gender = dto.gender;
     await this.userRepository.save(user);

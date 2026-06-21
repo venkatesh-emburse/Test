@@ -1,4 +1,4 @@
-# 💕 LiveConnect - Dating App with Safety-First Design
+# 💕 Kinetic Pulse - Dating App with Safety-First Design
 
 > A cross-platform dating application focused on genuine connections, user safety, and intent-based matching. Built with Flutter, NestJS, and advanced safety verification.
 
@@ -22,7 +22,7 @@
 
 ## 🎯 Project Overview
 
-**LiveConnect** is a safety-first dating application designed specifically for the Indian market, addressing key pain points:
+**Kinetic Pulse** is a safety-first dating application designed specifically for the Indian market, addressing key pain points:
 - Fake profiles and scammers
 - Mismatched intentions between users
 - Safety concerns, especially for women

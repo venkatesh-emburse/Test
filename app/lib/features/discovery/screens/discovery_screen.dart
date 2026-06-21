@@ -31,6 +31,20 @@ final discoveryProfilesProvider =
   }
 });
 
+// Polls received likes count every 30 seconds
+final receivedLikesCountProvider = StreamProvider<int>((ref) async* {
+  final dio = ref.read(dioProvider);
+  while (true) {
+    try {
+      final response = await dio.get('/discovery/likes/count');
+      yield response.data['likesCount'] ?? 0;
+    } catch (_) {
+      yield 0;
+    }
+    await Future.delayed(const Duration(seconds: 30));
+  }
+});
+
 class DiscoveryScreen extends ConsumerStatefulWidget {
   const DiscoveryScreen({super.key});
 
@@ -54,6 +68,8 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
         '/discovery/swipe',
         data: {'targetUserId': profileId, 'action': action},
       );
+
+      ref.invalidate(receivedLikesCountProvider);
 
       if (response.data['isMatch'] == true) {
         final matchId = response.data['match']?['id'];
@@ -167,7 +183,11 @@ class _DiscoveryScreenState extends ConsumerState<DiscoveryScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.favorite_border_rounded, size: 22),
+            icon: Badge(
+              isLabelVisible: (ref.watch(receivedLikesCountProvider).valueOrNull ?? 0) > 0,
+              label: Text('${ref.watch(receivedLikesCountProvider).valueOrNull ?? 0}'),
+              child: const Icon(Icons.favorite_border_rounded, size: 22),
+            ),
             onPressed: _openLikesScreen,
           ),
           IconButton(

@@ -237,7 +237,7 @@ export class DiscoveryService {
     return likes.map((like) => ({
       userId: like.swiper.id,
       name: like.swiper.name,
-      age: this.calculateAge(like.swiper.dateOfBirth),
+      age: like.swiper.dateOfBirth ? this.calculateAge(like.swiper.dateOfBirth) : null,
       intent: like.swiper.intent,
       bio: like.swiper.profile?.bio,
       photos: like.swiper.profile?.photos || [],
@@ -245,6 +245,38 @@ export class DiscoveryService {
       isVerified: like.swiper.isVerified,
       likedAt: like.createdAt,
     }));
+  }
+
+  async getReceivedLikesCount(userId: string): Promise<number> {
+    const count = await this.swipeRepository
+      .createQueryBuilder('swipe')
+      .where('swipe.swipedId = :userId', { userId })
+      .andWhere('swipe.action = :action', { action: SwipeAction.LIKE })
+      .andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Swipe, 'mySwipe')
+          .where('mySwipe.swiperId = :userId', { userId })
+          .andWhere('mySwipe.swipedId = swipe.swiperId')
+          .getQuery();
+        return `NOT EXISTS ${subQuery}`;
+      })
+      .andWhere((qb) => {
+        const subQuery = qb
+          .subQuery()
+          .select('1')
+          .from(Match, 'match')
+          .where(
+            '((match.user1Id = :userId AND match.user2Id = swipe.swiperId) OR (match.user2Id = :userId AND match.user1Id = swipe.swiperId))',
+            { userId },
+          )
+          .andWhere('match.isActive = :isActive', { isActive: true })
+          .getQuery();
+        return `NOT EXISTS ${subQuery}`;
+      })
+      .getCount();
+    return count;
   }
 
   // ==================== MATCHES ====================
@@ -270,7 +302,7 @@ export class DiscoveryService {
         chatUnlocked: match.chatUnlocked,
         otherUser: {
           id: otherUser.id,
-          name: otherUser.name,
+          name: otherUser.name ?? 'New User',
           photos: otherUser.profile?.photos,
           safetyScore: Number(otherUser.safetyScore),
           isVerified: otherUser.isVerified,
@@ -421,14 +453,14 @@ export class DiscoveryService {
     user: User,
     currentUser: User,
   ): DiscoveryProfileDto {
-    const age = this.calculateAge(user.dateOfBirth);
+    const age = user.dateOfBirth ? this.calculateAge(user.dateOfBirth) : null;
     const compatibilityScore = this.calculateCompatibility(user, currentUser);
 
     return {
       id: user.id,
-      name: user.name,
-      age,
-      gender: user.gender,
+      name: user.name ?? 'New User',
+      age: age ?? 0,
+      gender: user.gender ?? 'other',
       intent: user.intent,
       bio: user.profile?.bio,
       lookingFor: user.profile?.lookingFor,

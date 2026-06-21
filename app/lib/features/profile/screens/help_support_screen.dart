@@ -66,7 +66,7 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
               ),
               _buildFaqItem(
                 'How does matching work?',
-                'LiveConnect matches you based on your dating intent (marriage, long-term, short-term, or companionship) '
+                'Kinetic Pulse matches you based on your dating intent (marriage, long-term, short-term, or companionship) '
                     'and compatibility — not just proximity. You can send signals like Wave or Interested before matching. '
                     'Once both users like each other, you\'re matched! Complete a fun Micro-Date conversation game to unlock chat.',
               ),
@@ -84,8 +84,8 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
                     'from your discovery, map, and chat. Our safety team reviews all reports.',
               ),
               _buildFaqItem(
-                'Is LiveConnect free?',
-                'Yes! LiveConnect is completely free to use. All features including discovery, matching, chat, '
+                'Is Kinetic Pulse free?',
+                'Yes! Kinetic Pulse is completely free to use. All features including discovery, matching, chat, '
                     'map radar, signals, and verification are available to everyone. '
                     'We believe safety and genuine connections should be accessible to all.',
               ),

@@ -8,6 +8,7 @@ import {
   IsUrl,
   MaxLength,
   ArrayMaxSize,
+  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -19,6 +20,17 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(100)
   name?: string;
+
+  @ApiPropertyOptional({
+    example: '1995-06-15',
+    description: 'Date of birth in YYYY-MM-DD format',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Date must be in YYYY-MM-DD format',
+  })
+  dateOfBirth?: string;
 
   @ApiPropertyOptional({ example: 'Love hiking and coffee ☕', maxLength: 500 })
   @IsOptional()

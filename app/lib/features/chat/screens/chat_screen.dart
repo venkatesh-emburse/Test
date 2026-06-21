@@ -5,6 +5,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/models/models.dart';
 import '../../../core/services/socket_service.dart';
 import '../../../core/utils/app_theme.dart';
+import '../../../core/providers/router_provider.dart';
 import '../../discovery/screens/profile_details_screen.dart';
 import '../screens/chat_list_screen.dart';
 
@@ -104,6 +105,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       // Refresh conversations list so last message + unread counts stay in sync
       ref.invalidate(conversationsProvider);
+      ref.invalidate(unreadCountProvider);
 
       if (!isMe) {
         socketService.markRead(widget.matchId);
@@ -432,6 +434,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // Refresh conversations list so last message updates
     ref.invalidate(conversationsProvider);
+    ref.invalidate(unreadCountProvider);
   }
 
   Future<void> _sendViaRest(String content, Message tempMessage) async {
@@ -858,6 +861,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // Refresh conversations list so unread counts update when going back
     ref.invalidate(conversationsProvider);
+    ref.invalidate(unreadCountProvider);
 
     super.dispose();
   }

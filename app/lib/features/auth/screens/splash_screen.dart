@@ -118,7 +118,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
               const SizedBox(height: 28),
               const Text(
-                'LiveConnect',
+                'Kinetic Pulse',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,

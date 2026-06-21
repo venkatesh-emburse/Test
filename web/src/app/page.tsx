@@ -66,7 +66,7 @@ export default function Home() {
         transition={{ duration: 0.5 }}
         className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto"
       >
-        <div className="text-2xl font-bold text-rose-600">LiveConnect</div>
+        <div className="text-2xl font-bold text-rose-600">Kinetic Pulse</div>
         <div className="flex items-center gap-6">
           <Link
             href="#problem"
@@ -339,7 +339,7 @@ export default function Home() {
             variants={fadeUp}
             className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4"
           >
-            Why LiveConnect?
+            Why Kinetic Pulse?
           </motion.h2>
           <motion.p
             variants={fadeUp}
@@ -488,7 +488,7 @@ export default function Home() {
             variants={fadeUp}
             className="text-gray-600 text-center max-w-xl mx-auto mb-14"
           >
-            Hear from people who found genuine connections on LiveConnect.
+            Hear from people who found genuine connections on Kinetic Pulse.
           </motion.p>
 
           <motion.div
@@ -506,7 +506,7 @@ export default function Home() {
               },
               {
                 quote:
-                  "I was tired of fake profiles on other apps. LiveConnect's verification process made all the difference.",
+                  "I was tired of fake profiles on other apps. Kinetic Pulse's verification process made all the difference.",
                 name: "Arjun K.",
                 location: "Bangalore",
                 initials: "AK",
@@ -572,7 +572,7 @@ export default function Home() {
             className="text-rose-100 text-lg max-w-xl mx-auto mb-10 relative z-10"
           >
             Join thousands of verified Indians who chose trust over guesswork.
-            Download LiveConnect today — it&apos;s completely free.
+            Download Kinetic Pulse today — it&apos;s completely free.
           </motion.p>
           <motion.div
             variants={fadeUp}
@@ -606,7 +606,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="text-xl font-bold text-white mb-4">
-                LiveConnect
+                Kinetic Pulse
               </div>
               <p className="text-sm leading-relaxed">
                 India&apos;s safety-first dating app. Real people, real
@@ -650,7 +650,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            &copy; 2025 LiveConnect. All rights reserved.
+            &copy; 2025 Kinetic Pulse. All rights reserved.
           </div>
         </div>
       </motion.footer>

@@ -77,6 +77,9 @@ export class ProfileService {
     if (dto.name !== undefined) {
       user.name = dto.name;
     }
+    if (dto.dateOfBirth !== undefined) {
+      user.dateOfBirth = new Date(dto.dateOfBirth);
+    }
 
     // Ensure profile exists
     if (!user.profile) {
@@ -209,6 +212,7 @@ export class ProfileService {
         location: () =>
           `ST_SetSRID(ST_MakePoint(${dto.longitude}, ${dto.latitude}), 4326)`,
         locationUpdatedAt: new Date(),
+        lastActiveAt: new Date(),
       })
       .where('id = :id', { id: userId })
       .execute();

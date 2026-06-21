@@ -23,6 +23,20 @@ import '../../features/safety/screens/safety_screen.dart';
 import '../../features/profile/screens/help_support_screen.dart';
 import '../api/api_client.dart';
 
+// Polls unread message count every 30 seconds
+final unreadCountProvider = StreamProvider<int>((ref) async* {
+  final dio = ref.read(dioProvider);
+  while (true) {
+    try {
+      final response = await dio.get('/chat/unread-count');
+      yield response.data['unreadCount'] ?? 0;
+    } catch (_) {
+      yield 0;
+    }
+    await Future.delayed(const Duration(seconds: 30));
+  }
+});
+
 // Shell navigation for bottom nav bar with back-button handling
 class ShellScreen extends StatefulWidget {
   final Widget child;
@@ -83,46 +97,60 @@ class _ShellScreenState extends State<ShellScreen> {
               ),
             ),
           ),
-          child: NavigationBar(
-            selectedIndex: widget.currentIndex,
-            onDestinationSelected: (index) {
-              switch (index) {
-                case 0:
-                  context.go('/discovery');
-                  break;
-                case 1:
-                  context.go('/map');
-                  break;
-                case 2:
-                  context.go('/chat');
-                  break;
-                case 3:
-                  context.go('/profile');
-                  break;
-              }
+          child: Consumer(
+            builder: (context, ref, _) {
+              final unreadAsync = ref.watch(unreadCountProvider);
+              final unreadCount = unreadAsync.valueOrNull ?? 0;
+              return NavigationBar(
+                selectedIndex: widget.currentIndex,
+                onDestinationSelected: (index) {
+                  switch (index) {
+                    case 0:
+                      context.go('/discovery');
+                      break;
+                    case 1:
+                      context.go('/map');
+                      break;
+                    case 2:
+                      context.go('/chat');
+                      break;
+                    case 3:
+                      context.go('/profile');
+                      break;
+                  }
+                },
+                destinations: [
+                  const NavigationDestination(
+                    icon: Icon(Icons.favorite_outline_rounded),
+                    selectedIcon: Icon(Icons.favorite_rounded),
+                    label: 'Discover',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.location_on_outlined),
+                    selectedIcon: Icon(Icons.location_on_rounded),
+                    label: 'Map',
+                  ),
+                  NavigationDestination(
+                    icon: Badge(
+                      isLabelVisible: unreadCount > 0,
+                      label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+                      child: const Icon(Icons.chat_bubble_outline_rounded),
+                    ),
+                    selectedIcon: Badge(
+                      isLabelVisible: unreadCount > 0,
+                      label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+                      child: const Icon(Icons.chat_bubble_rounded),
+                    ),
+                    label: 'Chat',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.person_outline_rounded),
+                    selectedIcon: Icon(Icons.person_rounded),
+                    label: 'Profile',
+                  ),
+                ],
+              );
             },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.favorite_outline_rounded),
-                selectedIcon: Icon(Icons.favorite_rounded),
-                label: 'Discover',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.location_on_outlined),
-                selectedIcon: Icon(Icons.location_on_rounded),
-                label: 'Map',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                selectedIcon: Icon(Icons.chat_bubble_rounded),
-                label: 'Chat',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
-              ),
-            ],
           ),
         ),
       ),

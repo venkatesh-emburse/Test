@@ -55,6 +55,14 @@ export class DiscoveryController {
     return this.discoveryService.swipe(userId, dto);
   }
 
+  @Get('likes/count')
+  @ApiOperation({ summary: 'Get count of pending likes received' })
+  @ApiResponse({ status: 200, description: 'Likes count' })
+  async getReceivedLikesCount(@CurrentUser('id') userId: string) {
+    const count = await this.discoveryService.getReceivedLikesCount(userId);
+    return { likesCount: count };
+  }
+
   @Get('likes')
   @ApiOperation({ summary: 'Get pending likes received by the current user' })
   @ApiResponse({ status: 200, description: 'List of users who liked you' })

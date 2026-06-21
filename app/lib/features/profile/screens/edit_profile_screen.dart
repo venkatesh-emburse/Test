@@ -91,6 +91,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       // 1. Update profile fields
       await ref.read(dioProvider).put('/profile', data: {
         'name': _nameController.text.trim(),
+        'dateOfBirth': _dateOfBirth?.toIso8601String().split('T')[0],
         'bio': _bioController.text.trim(),
         'lookingFor': _lookingForController.text.trim(),
         'height': _height,
@@ -290,24 +291,38 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget _buildDateOfBirthField() {
     return _fieldLabel(
       label: 'Date of Birth',
-      locked: true,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHigh
-              .withValues(alpha: 0.82),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          _dateOfBirth != null
-              ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
-              : 'Not set',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+      child: InkWell(
+        onTap: () async {
+          final date = await showDatePicker(
+            context: context,
+            initialDate: _dateOfBirth ??
+                DateTime.now().subtract(const Duration(days: 365 * 25)),
+            firstDate: DateTime(1950),
+            lastDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+          );
+          if (date != null) setState(() => _dateOfBirth = date);
+        },
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHigh
+                .withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            _dateOfBirth != null
+                ? '${_dateOfBirth!.day}/${_dateOfBirth!.month}/${_dateOfBirth!.year}'
+                : 'Select date',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _dateOfBirth != null
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
         ),
       ),
     );

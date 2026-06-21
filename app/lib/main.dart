@@ -48,7 +48,7 @@ class _LiveConnectAppState extends ConsumerState<LiveConnectApp> {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'LiveConnect',
+        title: 'Kinetic Pulse',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

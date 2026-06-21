@@ -29,7 +29,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-rose-600">LiveConnect</h1>
+          <h1 className="text-3xl font-bold text-rose-600">Kinetic Pulse</h1>
           <p className="text-gray-500 mt-1">Admin Portal</p>
         </div>
 
@@ -86,7 +86,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          LiveConnect Admin &mdash; Authorized access only
+          Kinetic Pulse Admin &mdash; Authorized access only
         </p>
       </div>
     </div>
